@@ -21,6 +21,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
-      - run: ruff check .
       - run: python -m pytest -q
+      - run: ruff check .
       - run: bandit -q -r src
