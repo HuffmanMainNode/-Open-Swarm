@@ -34,6 +34,7 @@ from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
 
+
 def _tls_material(root: Path) -> tuple[Path, ...]:
     """Create a short-lived test CA, server cert, and two client certificates."""
     now = datetime.now(UTC)
