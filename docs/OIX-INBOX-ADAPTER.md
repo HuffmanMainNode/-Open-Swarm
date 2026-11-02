@@ -206,3 +206,21 @@ The mutual-TLS interoperability example now sends two distinct encrypted task re
 Each stream item uses a distinct signed one-time-prekey bundle. The sender waits for the corresponding signed, digest-bound receipt before transmitting the next item. This exercises bounded persistent sessions, sequential backpressure, durable inbox acceptance, and receipt verification across the Open-Swarm handoff.
 
 The example reports one connection for the request batch and one connection for the result batch. It remains a same-host loopback test with two independent agent databases and does not claim a WAN deployment or a pub/sub broker.
+
+
+## Phase 10: approval-gated OIX evidence ingestion
+
+Open-Swarm now includes an optional `OIXEvidenceIngestor` adapter in `src/openswarm/oix_evidence.py`. It moves a reviewed OIX `evidence.submit` record into the durable `SQLiteEventBus` as `intelligence.evidence.submitted`.
+
+Requirements and guarantees:
+- The OIX inbox and Open-Swarm event journal must use the same local SQLite database file. The adapter refuses separate database paths because cross-database writes would not be atomic.
+- Only an OIX `evidence.submit` item with status `approved` may be ingested. Pending and rejected records remain untouched.
+- The adapter rechecks the stored envelope signature, sender identity, recipient, message ID, and evidence schema before publishing.
+- One `BEGIN IMMEDIATE` transaction appends the platform event, records the ingestion audit, and changes the OIX work status from `approved` to `ingested`.
+- Event IDs are deterministic for the sender/message pair. Retrying an already ingested record returns the original event receipt rather than creating a second event.
+- Evidence classification is preserved but explicitly marked as sender-asserted. It is not an independent trust verdict.
+- Only metadata and artifact hashes are exchanged. The adapter does not fetch source URLs, download artifacts, execute code, or interpret evidence as instructions.
+
+Install OIX alongside Open-Swarm to use this optional adapter. The Open-Swarm core remains independently usable without OIX. The cross-repository workflow checks out OIX Phase 11, runs dedicated adapter regression tests, and exercises a persistent mutual-TLS stream containing two task requests and one evidence submission. Task requests remain operator-approved before Open-Swarm execution; evidence requires a separate review approval before it enters the event journal.
+
+This remains a single-host SQLite integration demonstration, not a distributed broker or multi-host production deployment.
