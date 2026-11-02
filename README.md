@@ -6,8 +6,7 @@ Open-Swarm is a small Python runtime for assigning bounded tasks to specialist w
 
 > **Status:** initial implementation. The deterministic mock adapter is intended for tests and demos. The optional Ollama adapter requires a separately installed and running Ollama server. This project is an orchestration prototype, not a production security boundary.
 
-## Quick start
-
+## Onboarding\n\nNew operators: start with [Human Onboarding](docs/USER-ONBOARDING.md). AI agents and developers: read [Agent Onboarding](docs/AGENT-ONBOARDING.md) and [AGENTS.md](AGENTS.md) before submitting or processing tasks. The mock adapter is the recommended first-run path.\n\n## Quick start\n
 ```bash
 python -m venv .venv
 . .venv/bin/activate
