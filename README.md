@@ -24,6 +24,7 @@ pytest
 - Policy engine for capability checks, output limits, task allow/deny rules, and human-approval gates.
 - Structured audit events stored in SQLite.
 - Transactional task-lifecycle outbox and a local SQLite event journal with at-least-once relay semantics.
+- Optional OIX inbox adapter for atomic, idempotent handoff of operator-approved remote tasks.
 - CLI for submitting, approving, rejecting, listing, running, and inspecting tasks.
 - Tests and GitHub Actions CI.
 
@@ -41,6 +42,7 @@ pytest
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security model](docs/SECURITY.md)
 - [OIX integration](docs/OIX.md)
+- [OIX inbox atomic handoff adapter](docs/OIX-INBOX-ADAPTER.md)
 - [Local event journal contract](docs/EVENT-BUS.md)
 - [Supervised outbox relay operations](docs/OUTBOX-RELAY.md)
 - [OIX-to-platform event mapping](docs/OIX-MAPPING.md)
@@ -78,7 +80,7 @@ openswarm relay --poll-interval 2 --batch-size 100
 
 The continuous relay runs in the foreground and stops with Ctrl+C. Use one relay process per task database. See [relay operations](docs/OUTBOX-RELAY.md) for delivery guarantees, recovery behavior, and security limitations.
 
-For approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log.
+For approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log. The optional OIX adapter accepts only tasks already approved in the OIX inbox, then commits the Open-Swarm task, audit/outbox events, durable remote-message mapping, and OIX dispatched state in one shared SQLite transaction. See [adapter operations](docs/OIX-INBOX-ADAPTER.md).
 
 ## License
 
