@@ -224,3 +224,18 @@ Requirements and guarantees:
 Install OIX alongside Open-Swarm to use this optional adapter. The Open-Swarm core remains independently usable without OIX. The cross-repository workflow checks out OIX Phase 11, runs dedicated adapter regression tests, and exercises a persistent mutual-TLS stream containing two task requests and one evidence submission. Task requests remain operator-approved before Open-Swarm execution; evidence requires a separate review approval before it enters the event journal.
 
 This remains a single-host SQLite integration demonstration, not a distributed broker or multi-host production deployment.
+
+
+## Phase 11: Halloween OSINT and Cyber Observatory evidence sources
+
+The cross-repository demonstration `examples/osint_ecosystem_e2e_demo.py` checks that the optional evidence bridges in both source repositories produce OIX records that can travel through the persistent mutual-TLS stream and enter the Open-Swarm event journal.
+
+The workflow checks out:
+- Open Intelligence Exchange Phase 11
+- Halloween OSINT `integration/oix-evidence-bridge`
+- Huffman Cyber Observatory `integration/oix-evidence-bridge`
+- Open-Swarm Phase 11
+
+The demonstration creates synthetic local artifacts, then uses the Halloween bridge to create a `domain_observation` evidence message and the Cyber Observatory bridge to create an `sbom_analysis` evidence message. It sends those alongside two task requests in one authenticated persistent stream. The receiver applies operator approval separately to task requests and evidence records, ingests both evidence events, runs the two approved tasks using the local mock worker, and returns two encrypted results over one persistent stream.
+
+No real target is scanned, no external URL is fetched, and no artifact bytes are uploaded. The demo runs on one physical host with loopback-only listeners and independent OIX agent databases. It demonstrates contract interoperability, not WAN deployment or distributed-broker availability.
