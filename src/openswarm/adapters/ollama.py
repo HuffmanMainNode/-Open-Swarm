@@ -26,7 +26,9 @@ class OllamaAdapter:
         if parsed.path not in {"", "/"}:
             raise ValueError("Ollama base URL must not contain an API path")
         try:
-            parsed.port
+            port = parsed.port
+            if port == 0:
+                raise ValueError("Ollama URL port must be positive")
         except ValueError as exc:
             raise ValueError("Ollama URL contains an invalid port") from exc
         self.base_url = base_url.rstrip("/")
