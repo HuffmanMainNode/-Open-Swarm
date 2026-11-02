@@ -251,44 +251,61 @@ class SQLiteEventBus:
         db.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
         return db
 
-    def publish(self, event: PlatformEvent) -> EventReceipt:
+    def publish_in_transaction(
+        self, connection: sqlite3.Connection, event: PlatformEvent
+    ) -> EventReceipt:
+        """Append an event inside a caller-owned transaction on this same database.
+
+        This enables adapters to atomically persist a domain event and advance
+        the source system's durable state without a dual-write gap.
+        """
+        if not isinstance(connection, sqlite3.Connection) or not connection.in_transaction:
+            raise ValueError("connection must be an active SQLite transaction")
+        database_rows = connection.execute("PRAGMA database_list").fetchall()
+        main_path = next((row[2] for row in database_rows if row[1] == "main"), "")
+        if not main_path or Path(main_path).resolve() != Path(self.database).resolve():
+            raise ValueError("transaction connection must target the event journal database")
         encoded = _validate_event(event)
+        try:
+            cursor = connection.execute(
+                """
+                INSERT INTO platform_events(
+                    event_id,event_type,schema_version,occurred_at,source,classification,
+                    correlation_id,causation_id,evidence_refs_json,payload_json,canonical_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    event.event_id,
+                    event.event_type,
+                    event.schema_version,
+                    event.occurred_at,
+                    event.source,
+                    event.classification,
+                    event.correlation_id,
+                    event.causation_id,
+                    encoded["evidence_refs"],
+                    encoded["payload"],
+                    encoded["canonical"],
+                ),
+            )
+            return EventReceipt(event.event_id, int(cursor.lastrowid), False)
+        except sqlite3.IntegrityError as exc:
+            existing = connection.execute(
+                "SELECT sequence,canonical_json FROM platform_events WHERE event_id=?",
+                (event.event_id,),
+            ).fetchone()
+            if existing is None:
+                raise
+            if existing["canonical_json"] != encoded["canonical"]:
+                raise EventConflictError(
+                    "event_id already exists with different content"
+                ) from exc
+            return EventReceipt(event.event_id, int(existing["sequence"]), True)
+
+    def publish(self, event: PlatformEvent) -> EventReceipt:
         with self._connect() as db:
-            try:
-                cursor = db.execute(
-                    """
-                    INSERT INTO platform_events(
-                        event_id,event_type,schema_version,occurred_at,source,classification,
-                        correlation_id,causation_id,evidence_refs_json,payload_json,canonical_json
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
-                    """,
-                    (
-                        event.event_id,
-                        event.event_type,
-                        event.schema_version,
-                        event.occurred_at,
-                        event.source,
-                        event.classification,
-                        event.correlation_id,
-                        event.causation_id,
-                        encoded["evidence_refs"],
-                        encoded["payload"],
-                        encoded["canonical"],
-                    ),
-                )
-                return EventReceipt(event.event_id, int(cursor.lastrowid), False)
-            except sqlite3.IntegrityError as exc:
-                existing = db.execute(
-                    "SELECT sequence,canonical_json FROM platform_events WHERE event_id=?",
-                    (event.event_id,),
-                ).fetchone()
-                if existing is None:
-                    raise
-                if existing["canonical_json"] != encoded["canonical"]:
-                    raise EventConflictError(
-                        "event_id already exists with different content"
-                    ) from exc
-                return EventReceipt(event.event_id, int(existing["sequence"]), True)
+            db.execute("BEGIN IMMEDIATE")
+            return self.publish_in_transaction(db, event)
 
     def read(self, consumer_id: str, *, limit: int = 100) -> list[EventRecord]:
         if not isinstance(consumer_id, str) or not consumer_id.strip() or len(consumer_id) > 128:

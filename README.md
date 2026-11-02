@@ -110,3 +110,8 @@ The Phase 7 interoperability workflow checks out OIX's atomic prekey/inbox accep
 ### Mutual-TLS interoperability demonstration
 
 With OIX Phase 8 installed, run `python examples/oix_mutual_tls_e2e_demo.py` to exercise batches of encrypted task requests and results over persistent mutual-TLS loopback connections between two independent OIX identities and databases, with certificate URI SANs bound to each agent fingerprint. The demo requires explicit inbox approval, uses the Open-Swarm mock worker, verifies signed delivery receipts in both directions, and reports that both agents run on one physical host. It is a network integration test, not a WAN deployment claim.
+
+
+### OIX evidence ingestion
+
+With OIX Phase 11 installed, `OIXEvidenceIngestor` can transfer an operator-approved `evidence.submit` record into the local Open-Swarm event journal. The OIX inbox and event journal must share one SQLite file so the event append and inbox status transition are atomic. See [OIX Inbox Adapter](docs/OIX-INBOX-ADAPTER.md) for security boundaries and the persistent mutual-TLS evidence-stream demonstration.

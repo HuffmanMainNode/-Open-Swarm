@@ -33,7 +33,9 @@ from oix.transport import (
     send_encrypted_stream,
 )
 
+from openswarm.events import SQLiteEventBus
 from openswarm.models import TaskStatus
+from openswarm.oix_evidence import OIXEvidenceIngestor
 from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
@@ -219,9 +221,40 @@ async def _exchange(root: Path) -> dict[str, object]:
                 "List the OIX trust checks that precede task approval.",
             )
         ]
+        evidence_message = create_message(
+            peer_sign,
+            local_id,
+            "evidence.submit",
+            {
+                "schema_version": "1.0",
+                "evidence_id": "4b3b7a6f-3e5a-4a6d-9f0b-2d9f1c6a7e80",
+                "evidence_type": "domain_observation",
+                "source_uri": "https://example.org/security-advisory",
+                "source_timestamp": None,
+                "collected_at": "2026-11-02T00:00:00Z",
+                "collector": {"name": "halloween-osint-2026", "version": "0.1.0"},
+                "method": {"name": "dns-tls-observation", "version": "1.0"},
+                "artifact": {
+                    "sha256": "a" * 64,
+                    "size_bytes": 2048,
+                    "media_type": "application/json",
+                },
+                "classification": "public",
+                "status": "observed",
+                "summary": {
+                    "record_count": 2,
+                    "observation_kind": "domain_infrastructure",
+                },
+                "limitations": [
+                    "The digest identifies artifact bytes but does not prove source authenticity."
+                ],
+            },
+            capability="public.research",
+        )
+        inbound_messages = [*requests, evidence_message]
         local_bundles = [
             create_prekey_bundle(local_prekeys, local_sign, count=1)
-            for _ in requests
+            for _ in inbound_messages
         ]
         peer_bundles = [
             create_prekey_bundle(peer_prekeys, peer_sign, count=1)
@@ -233,12 +266,12 @@ async def _exchange(root: Path) -> dict[str, object]:
                 local_bundles[index],
                 local_sign.public_key().public_bytes_raw(),
             )
-            for index, request in enumerate(requests)
+            for index, request in enumerate(inbound_messages)
         ]
         request_receipts = await send_encrypted_stream(
             sealed_requests,
             expected_message_ids=[
-                request["body"]["message_id"] for request in requests
+                request["body"]["message_id"] for request in inbound_messages
             ],
             host=local_host,
             port=local_port,
@@ -248,7 +281,7 @@ async def _exchange(root: Path) -> dict[str, object]:
             expected_peer_agent_id=local_id,
             expected_peer_signing_public_key=local_sign.public_key().public_bytes_raw(),
         )
-        if len(request_receipts) != len(requests) or any(
+        if len(request_receipts) != len(inbound_messages) or any(
             receipt["body"]["type"] != "delivery.receipt"
             for receipt in request_receipts
         ):
@@ -256,13 +289,20 @@ async def _exchange(root: Path) -> dict[str, object]:
 
         pending = local_inbox.pending_work()
         pending_by_message = {item["message_id"]: item for item in pending}
-        if len(pending_by_message) != len(requests):
+        if len(pending_by_message) != len(inbound_messages):
             raise RuntimeError("request stream was not durably accepted into the OIX inbox")
         for request in requests:
             work = pending_by_message.get(request["body"]["message_id"])
             if work is None:
-                raise RuntimeError("a streamed request is missing from the durable inbox")
+                raise RuntimeError("a streamed task request is missing from the durable inbox")
             local_inbox.decide_work(work["work_id"], approve=True)
+        evidence_work = pending_by_message.get(evidence_message["body"]["message_id"])
+        if evidence_work is None or evidence_work["work_type"] != "evidence.submit":
+            raise RuntimeError("evidence.submit was not durably queued for review")
+        local_inbox.decide_work(evidence_work["work_id"], approve=True)
+        evidence_receipt = OIXEvidenceIngestor(
+            local_inbox, SQLiteEventBus(local_db)
+        ).ingest_one(peer_id, evidence_message["body"]["message_id"])
 
         queue = TaskQueue(local_db)
         handoff_adapter = OIXTaskHandoff(queue)
@@ -331,8 +371,13 @@ async def _exchange(root: Path) -> dict[str, object]:
             raise RuntimeError("peer inbox did not durably store every streamed task.result")
 
         return {
-            "request_count": len(requests),
+            "task_request_count": len(requests),
+            "evidence_submit_count": 1,
+            "request_stream_total_frames": len(inbound_messages),
             "request_stream_receipts_verified": len(request_receipts),
+            "evidence_event_id": evidence_receipt.event_id,
+            "evidence_event_sequence": evidence_receipt.sequence,
+            "evidence_ingestion_duplicate": evidence_receipt.duplicate,
             "task_ids": [handoff.task_id for handoff in handoffs],
             "task_statuses": [task.status.value for task in tasks],
             "result_count": len(signed_results),
