@@ -16,6 +16,7 @@ from openswarm.ingestion import MAX_BATCH_EVENTS, SourceBatch
 
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
+CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
 
 def _text(
@@ -89,6 +90,7 @@ class CisaKevSource:
                 state["last_date"]
             ):
                 raise ValueError("CISA KEV date checkpoint is invalid")
+            datetime.strptime(state["last_date"], "%Y-%m-%d")
         else:
             if (
                 not isinstance(state.get("offset"), int)
@@ -118,8 +120,9 @@ class CisaKevSource:
             not isinstance(feed_hash, str)
             or not _SHA256.fullmatch(feed_hash)
             or not isinstance(vulnerabilities, list)
+            or snapshot.get("source_url") != CISA_KEV_URL
         ):
-            raise ValueError("HCO KEV snapshot does not match the expected schema")
+            raise ValueError("HCO KEV snapshot does not match the expected CISA source schema")
         dates = [_date(item) for item in vulnerabilities if isinstance(item, dict)]
         if len(dates) != len(vulnerabilities):
             raise ValueError("CISA KEV catalog contains a non-object record")
@@ -159,12 +162,22 @@ class CisaKevSource:
         )
         chunk = records[offset : offset + MAX_BATCH_EVENTS]
         events = []
-        source_url = snapshot.get("source_url")
+        source_url = CISA_KEV_URL
+        seen_records: set[tuple[str, str]] = set()
         for item in chunk:
             cve_id = _text(item, "cveID", required=True, limit=32)
             if not re.fullmatch(r"CVE-\d{4}-\d{4,}", cve_id):
                 raise ValueError("CISA KEV record contains an invalid CVE identifier")
             added = _date(item)
+            record_key = (cve_id, added)
+            if record_key in seen_records:
+                continue
+            seen_records.add(record_key)
+            due_date = _text(item, "dueDate", limit=10)
+            if due_date is not None:
+                if not _DATE.fullmatch(due_date):
+                    raise ValueError("CISA KEV dueDate must use YYYY-MM-DD")
+                datetime.strptime(due_date, "%Y-%m-%d")
             event_id = str(uuid5(NAMESPACE_URL, f"cisa-kev:{cve_id}:{added}"))
             events.append(
                 PlatformEvent(
@@ -184,7 +197,7 @@ class CisaKevSource:
                         "date_added": added,
                         "short_description": _text(item, "shortDescription", limit=2048),
                         "required_action": _text(item, "requiredAction", limit=2048),
-                        "due_date": _text(item, "dueDate", limit=10),
+                        "due_date": due_date,
                         "known_ransomware_campaign_use": _text(
                             item, "knownRansomwareCampaignUse", limit=32
                         ),
