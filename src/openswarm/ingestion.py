@@ -6,6 +6,7 @@ This is a bounded polling supervisor, not a distributed stream broker.
 """
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from typing import Protocol
 from uuid import uuid4
 
 from openswarm.events import EventReceipt, PlatformEvent, SQLiteEventBus
+
+LOGGER = logging.getLogger(__name__)
 
 MAX_BATCH_EVENTS = 1000
 MAX_CHECKPOINT_CHARS = 4096
@@ -357,6 +360,20 @@ class IngestionSupervisor:
             raise ValueError("idle_sleep_seconds must be between 0.1 and 60")
         while True:
             results = self.run_due_once()
+            for result in results:
+                if result.status == "succeeded":
+                    LOGGER.info(
+                        "source=%s status=succeeded events=%d duplicates=%d",
+                        result.source_id,
+                        result.event_count,
+                        result.duplicate_count,
+                    )
+                elif result.status == "failed":
+                    LOGGER.warning(
+                        "source=%s status=failed error_type=%s",
+                        result.source_id,
+                        result.error_type,
+                    )
             if not results or all(
                 result.status in {"not_due", "lease_active"} for result in results
             ):
