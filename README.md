@@ -42,6 +42,7 @@ pytest
 - [Security model](docs/SECURITY.md)
 - [OIX integration](docs/OIX.md)
 - [Local event journal contract](docs/EVENT-BUS.md)
+- [Supervised outbox relay operations](docs/OUTBOX-RELAY.md)
 - [OIX-to-platform event mapping](docs/OIX-MAPPING.md)
 - [Development](CONTRIBUTING.md)
 
@@ -52,6 +53,8 @@ openswarm submit --worker general --task "Summarize the public README in three b
 openswarm run-once
 openswarm tasks
 openswarm audit --limit 20
+openswarm relay-status
+openswarm relay-once
 ```
 
 To use a local Ollama model:
@@ -62,6 +65,18 @@ openswarm run-once
 ```
 
 The Ollama server must be running locally. No cloud fallback is attempted.
+
+## Local integration relay
+
+The transactional task outbox can be relayed into the local event journal without a hosted broker:
+
+```bash
+openswarm relay-status
+openswarm relay-once
+openswarm relay --poll-interval 2 --batch-size 100
+```
+
+The continuous relay runs in the foreground and stops with Ctrl+C. Use one relay process per task database. See [relay operations](docs/OUTBOX-RELAY.md) for delivery guarantees, recovery behavior, and security limitations.
 
 For approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log.
 
