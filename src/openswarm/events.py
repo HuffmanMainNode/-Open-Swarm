@@ -379,3 +379,32 @@ class SQLiteEventBus:
             occurred_at=row["occurred_at"],
         )
         return EventRecord(sequence=int(row["sequence"]), event=event)
+
+
+
+def publish_outbox(queue: Any, bus: SQLiteEventBus, *, limit: int = 100) -> list[EventReceipt]:
+    """Relay committed Open-Swarm lifecycle events into the local event journal.
+
+    If the process crashes after publish but before marking the outbox row,
+    retrying is safe because the event ID is stable and publication is idempotent.
+    Run one relay per queue database; the destination journal deduplicates repeats.
+    """
+    receipts: list[EventReceipt] = []
+    for record in queue.pending_outbox(limit):
+        queue.record_outbox_attempt(record["event_id"])
+        event = PlatformEvent(
+            event_id=record["event_id"],
+            event_type=record["event_type"],
+            source="open-swarm",
+            classification="internal",
+            correlation_id=record["task_id"],
+            occurred_at=record["created_at"],
+            payload={
+                "task_id": record["task_id"],
+                "detail": record["detail"],
+            },
+        )
+        receipt = bus.publish(event)
+        queue.mark_outbox_published(record["event_id"])
+        receipts.append(receipt)
+    return receipts

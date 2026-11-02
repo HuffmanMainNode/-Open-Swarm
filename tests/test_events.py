@@ -10,7 +10,10 @@ from openswarm.events import (
     EventValidationError,
     PlatformEvent,
     SQLiteEventBus,
+    publish_outbox,
 )
+from openswarm.models import Task
+from openswarm.queue import TaskQueue
 
 
 def make_event(event_id: str = "8b6a4f8d-9a3b-4e28-8d8e-0e5d9f7d1b11") -> PlatformEvent:
@@ -133,3 +136,48 @@ def test_validation_rejects_excessive_nesting(tmp_path: Path) -> None:
     event.payload = {"data": value}
     with pytest.raises(EventValidationError):
         bus.publish(event)
+
+
+
+def test_task_lifecycle_uses_transactional_outbox(tmp_path: Path) -> None:
+    queue = TaskQueue(tmp_path / "tasks.sqlite3")
+    bus = SQLiteEventBus(tmp_path / "events.sqlite3")
+    queue.submit(Task(worker="general", prompt="private investigation prompt"))
+    pending = queue.pending_outbox()
+    assert len(pending) == 1
+    assert pending[0]["event_type"] == "task.submitted"
+    assert "private investigation prompt" not in str(pending[0]["detail"])
+
+    receipts = publish_outbox(queue, bus)
+    assert len(receipts) == 1
+    assert receipts[0].duplicate is False
+    assert queue.pending_outbox() == []
+    received = bus.read("observatory")
+    assert len(received) == 1
+    assert received[0].event.event_id == pending[0]["event_id"]
+    assert received[0].event.payload["task_id"] is not None
+
+
+def test_outbox_relay_is_safe_after_publish_before_mark(tmp_path: Path) -> None:
+    queue = TaskQueue(tmp_path / "tasks.sqlite3")
+    bus = SQLiteEventBus(tmp_path / "events.sqlite3")
+    queue.submit(Task(worker="general", prompt="not exported"))
+    record = queue.pending_outbox()[0]
+    from openswarm.events import PlatformEvent
+
+    bus.publish(
+        PlatformEvent(
+            event_id=record["event_id"],
+            event_type=record["event_type"],
+            source="open-swarm",
+            classification="internal",
+            correlation_id=record["task_id"],
+            occurred_at=record["created_at"],
+            payload={"task_id": record["task_id"], "detail": record["detail"]},
+        )
+    )
+    receipts = publish_outbox(queue, bus)
+    assert len(receipts) == 1
+    assert receipts[0].duplicate is True
+    assert bus.count() == 1
+    assert queue.pending_outbox() == []
