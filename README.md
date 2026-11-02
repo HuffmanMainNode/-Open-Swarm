@@ -102,3 +102,6 @@ Phase 5 interoperability extends the encrypted round trip with a durable receive
 
 
 Phase 6 interoperability exercises signed one-time-prekey bundles in both directions. Each peer keeps its private prekeys locally; successful authenticated decryption consumes the matching key. The end-to-end example verifies the task handoff, encrypted result return, durable peer inbox acceptance, signed receipt, and retry reuse without opening network transport.
+
+
+The Phase 7 interoperability workflow checks out OIX's atomic prekey/inbox acceptance implementation. Each receiver now commits message acceptance and one-time-key consumption in a single local SQLite transaction; inbox failure rolls both back.
