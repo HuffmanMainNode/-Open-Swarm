@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
@@ -18,7 +18,9 @@ _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
 
-def _text(record: dict[str, Any], field: str, *, required: bool = False, limit: int = 2048) -> str | None:
+def _text(
+    record: dict[str, Any], field: str, *, required: bool = False, limit: int = 2048
+) -> str | None:
     value = record.get(field)
     if value is None:
         if required:
@@ -83,7 +85,9 @@ class CisaKevSource:
         ):
             raise ValueError("CISA KEV checkpoint has an invalid shape")
         if state["mode"] == "date":
-            if not isinstance(state.get("last_date"), str) or not _DATE.fullmatch(state["last_date"]):
+            if not isinstance(state.get("last_date"), str) or not _DATE.fullmatch(
+                state["last_date"]
+            ):
                 raise ValueError("CISA KEV date checkpoint is invalid")
         else:
             if (
@@ -174,7 +178,9 @@ class CisaKevSource:
                         "cve_id": cve_id,
                         "vendor_project": _text(item, "vendorProject", required=True, limit=256),
                         "product": _text(item, "product", required=True, limit=256),
-                        "vulnerability_name": _text(item, "vulnerabilityName", required=True, limit=512),
+                        "vulnerability_name": _text(
+                            item, "vulnerabilityName", required=True, limit=512
+                        ),
                         "date_added": added,
                         "short_description": _text(item, "shortDescription", limit=2048),
                         "required_action": _text(item, "requiredAction", limit=2048),
