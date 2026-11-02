@@ -123,7 +123,10 @@ def main() -> None:
             "request_and_result_encryption": "verified",
             "result_message_id": opened_result["body"]["message_id"],
             "recipient_is_original_peer": opened_result["body"]["recipient"] == peer_id,
-            "retry_reuses_same_wrapper": True,\n            "peer_inbox_durable_acceptance": True,\n            "signed_receipt_verified": True,\n            "delivery_state": "delivered",
+            "retry_reuses_same_wrapper": True,
+            "peer_inbox_durable_acceptance": True,
+            "signed_receipt_verified": True,
+            "delivery_state": "delivered",
             "network_transport": False,
             "remote_delivery": False,
         }, indent=2))
