@@ -159,7 +159,10 @@ class OIXEvidenceIngestor:
                 event_type="intelligence.evidence.submitted",
                 source=f"oix:{sender}",
                 schema_version="1.0",
-                classification=payload["classification"],
+                # Remote labels never downgrade the local event's handling level.
+                classification=(
+                    "restricted" if payload["classification"] == "restricted" else "internal"
+                ),
                 occurred_at=payload["collected_at"],
                 evidence_refs=[f"oix:evidence:{evidence_id}"],
                 causation_id=message_id,
@@ -168,6 +171,7 @@ class OIXEvidenceIngestor:
                     "message_id": message_id,
                     "work_id": row["work_id"],
                     "evidence": payload,
+                    "source_asserted_classification": payload["classification"],
                     "classification_is_sender_asserted": True,
                 },
             )
