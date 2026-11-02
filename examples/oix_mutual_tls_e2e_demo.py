@@ -34,8 +34,8 @@ from oix.transport import (
 )
 
 from openswarm.events import SQLiteEventBus
-from openswarm.oix_evidence import OIXEvidenceIngestor
 from openswarm.models import TaskStatus
+from openswarm.oix_evidence import OIXEvidenceIngestor
 from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
@@ -246,7 +246,7 @@ async def _exchange(root: Path) -> dict[str, object]:
                     "observation_kind": "domain_infrastructure",
                 },
                 "limitations": [
-                    "The digest identifies the artifact bytes but does not prove source authenticity."
+                    "The digest identifies artifact bytes but does not prove source authenticity."
                 ],
             },
             capability="public.research",
