@@ -65,13 +65,43 @@ class EventRecord:
     event: PlatformEvent
 
 
+def _validate_json_value(value: Any, *, depth: int = 0) -> None:
+    """Accept only deterministic JSON values used by the cross-language contract."""
+    if depth > 32:
+        raise EventValidationError("payload nesting exceeds 32 levels")
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float):
+        raise EventValidationError(
+            "floating-point values are prohibited; use integers or decimal strings"
+        )
+    if isinstance(value, list):
+        if len(value) > 10_000:
+            raise EventValidationError("payload arrays may contain at most 10000 items")
+        for item in value:
+            _validate_json_value(item, depth=depth + 1)
+        return
+    if isinstance(value, dict):
+        if len(value) > 10_000:
+            raise EventValidationError("payload objects may contain at most 10000 members")
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise EventValidationError("payload object keys must be strings")
+            _validate_json_value(item, depth=depth + 1)
+        return
+    raise EventValidationError("payload contains a value outside the JSON data model")
+
+
 def _validate_event(event: PlatformEvent) -> dict[str, str]:
     if not isinstance(event, PlatformEvent):
         raise EventValidationError("event must be a PlatformEvent")
+    if not isinstance(event.event_id, str):
+        raise EventValidationError("event_id must be a canonical lowercase UUID")
     try:
-        UUID(event.event_id)
+        if str(UUID(event.event_id)) != event.event_id:
+            raise ValueError("UUID must use canonical lowercase form")
     except (ValueError, TypeError, AttributeError) as exc:
-        raise EventValidationError("event_id must be a UUID") from exc
+        raise EventValidationError("event_id must be a canonical lowercase UUID") from exc
     if (
         not isinstance(event.event_type, str)
         or len(event.event_type) > 128
@@ -82,6 +112,7 @@ def _validate_event(event: PlatformEvent) -> dict[str, str]:
         raise EventValidationError("source must contain 1 to 128 characters")
     if (
         not isinstance(event.schema_version, str)
+        or len(event.schema_version) > 32
         or not re.fullmatch(r"[0-9]+\.[0-9]+", event.schema_version)
     ):
         raise EventValidationError("schema_version must use MAJOR.MINOR notation")
@@ -92,6 +123,7 @@ def _validate_event(event: PlatformEvent) -> dict[str, str]:
         raise EventValidationError("classification must be public, internal, or restricted")
     if not isinstance(event.payload, dict):
         raise EventValidationError("payload must be a JSON object")
+    _validate_json_value(event.payload)
     if not isinstance(event.evidence_refs, list) or len(event.evidence_refs) > MAX_EVIDENCE_REFS:
         raise EventValidationError("evidence_refs must be a list of at most 100 references")
     if any(
@@ -170,6 +202,8 @@ class SQLiteEventBus:
         if path.parent.is_symlink():
             raise ValueError("event journal directory must not be a symlink")
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.name == "posix" and path.parent.name == ".openswarm":
+            os.chmod(path.parent, 0o700)
         if path.is_symlink():
             raise ValueError("event journal database must not be a symlink")
         if os.name == "posix":

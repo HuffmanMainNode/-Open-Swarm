@@ -109,3 +109,27 @@ def test_consumer_must_ack_after_processing_to_advance_offset(tmp_path: Path) ->
     assert bus.read("consumer") == [first[0]]
     bus.acknowledge("consumer", first[0].sequence)
     assert bus.read("consumer") == []
+
+
+
+def test_validation_rejects_floats_and_non_string_object_keys(tmp_path: Path) -> None:
+    bus = SQLiteEventBus(tmp_path / "events.sqlite3")
+    event = make_event()
+    event.payload = {"score": 0.75}
+    with pytest.raises(EventValidationError):
+        bus.publish(event)
+    event = make_event("4aebd8e6-c451-40c6-9c93-14e6c0a09a25")
+    event.payload = {1: "not a valid JSON object key"}
+    with pytest.raises(EventValidationError):
+        bus.publish(event)
+
+
+def test_validation_rejects_excessive_nesting(tmp_path: Path) -> None:
+    bus = SQLiteEventBus(tmp_path / "events.sqlite3")
+    event = make_event()
+    value: object = "leaf"
+    for _ in range(34):
+        value = {"nested": value}
+    event.payload = {"data": value}
+    with pytest.raises(EventValidationError):
+        bus.publish(event)
