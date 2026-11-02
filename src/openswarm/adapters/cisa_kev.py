@@ -20,11 +20,16 @@ _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 
 def _text(record: dict[str, Any], field: str, *, required: bool = False, limit: int = 2048) -> str | None:
     value = record.get(field)
-    if value is None and not required:
+    if value is None:
+        if required:
+            raise ValueError(f"CISA KEV field {field} is required")
         return None
-    if not isinstance(value, str) or not value.strip() or len(value) > limit:
+    if not isinstance(value, str) or len(value) > limit:
         raise ValueError(f"CISA KEV field {field} is invalid")
-    return value.strip()
+    cleaned = value.strip()
+    if not cleaned and required:
+        raise ValueError(f"CISA KEV field {field} is required")
+    return cleaned or None
 
 
 def _date(record: dict[str, Any]) -> str:
