@@ -26,11 +26,11 @@ jobs:
     steps:
       - name: Check out Open-Swarm
         uses: actions/checkout@v4
-      - name: Check out OIX Phase 6
+      - name: Check out OIX Phase 7
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: integration/phase-6-one-time-prekeys
+          ref: integration/phase-7-mutual-tls-transport
           path: Open-Intelligence-Exchange
       - name: Set up Python
         uses: actions/setup-python@v5
