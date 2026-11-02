@@ -58,3 +58,19 @@ The capabilities list must include the OIX-approved requested capability. The ad
 - OIX v0.1 messages are signed but not encrypted. Do not send secrets, private prompts, personal data, restricted investigations, or internal search queries.
 - A valid signature proves key possession, not truth.
 - The shared SQLite file is single-host local storage. Protect it with OS permissions and encrypted storage appropriate to the data classification.
+
+
+## CLI
+
+After OIX has accepted and an operator has approved task requests in the shared database:
+
+```bash
+openswarm --db .openswarm/state.sqlite3 oix-handoff --limit 100
+```
+
+The command prints durable handoff receipts. It does not run tasks. Inspect the local queue and audit log separately:
+
+```bash
+openswarm --db .openswarm/state.sqlite3 tasks
+openswarm --db .openswarm/state.sqlite3 audit --limit 50
+```
