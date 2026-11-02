@@ -241,9 +241,10 @@ class IngestionSupervisor:
                     for event in batch.events
                 ]
                 duplicate_count = sum(1 for receipt in receipts if receipt.duplicate)
-                completed_at = _timestamp(datetime.now(UTC))
+                completed_time = now or datetime.now(UTC)
+                completed_at = _timestamp(completed_time)
                 next_poll_at = _timestamp(
-                    datetime.now(UTC) + timedelta(seconds=interval_seconds)
+                    completed_time + timedelta(seconds=interval_seconds)
                 )
                 db.execute(
                     """
@@ -271,7 +272,8 @@ class IngestionSupervisor:
                 source_id, "succeeded", len(receipts), duplicate_count
             )
         except Exception as exc:
-            finished_at = _timestamp(datetime.now(UTC))
+            finished_time = now or datetime.now(UTC)
+            finished_at = _timestamp(finished_time)
             with self.event_bus._connect() as db:
                 db.execute("BEGIN IMMEDIATE")
                 state = db.execute(
@@ -288,7 +290,7 @@ class IngestionSupervisor:
                         self.max_backoff_seconds,
                     )
                     retry_at = _timestamp(
-                        datetime.now(UTC) + timedelta(seconds=delay)
+                        finished_time + timedelta(seconds=delay)
                     )
                     db.execute(
                         """
