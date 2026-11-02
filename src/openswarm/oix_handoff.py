@@ -90,6 +90,36 @@ class OIXTaskHandoff:
                 )
                 """
             )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS oix_result_outbox (
+                    task_id TEXT PRIMARY KEY,
+                    sender TEXT NOT NULL,
+                    request_message_id TEXT NOT NULL,
+                    terminal_status TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending_approval'
+                        CHECK(status IN (
+                            'pending_approval','approved','signed','delivered','rejected'
+                        )),
+                    created_at TEXT NOT NULL,
+                    decided_at TEXT,
+                    signed_envelope_json TEXT,
+                    signed_message_id TEXT,
+                    delivered_at TEXT,
+                    rejection_reason TEXT,
+                    FOREIGN KEY(task_id) REFERENCES tasks(task_id),
+                    FOREIGN KEY(sender, request_message_id)
+                        REFERENCES inbox_messages(sender, message_id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_oix_result_outbox_status
+                ON oix_result_outbox(status, created_at)
+                """
+            )
 
     @staticmethod
     def _require_oix_schema(db: sqlite3.Connection) -> None:
