@@ -143,7 +143,7 @@ class OIXEvidenceIngestor:
                     envelope, public_key, self.inbox.local_agent_id, now=issued_at
                 ):
                     raise ValueError("stored OIX signature or recipient validation failed")
-                _validate_evidence_submit_payload(payload)
+                validate_evidence_submit_payload(payload)
             except Exception as exc:
                 db.rollback()
                 raise OIXEvidenceIngestError(
