@@ -22,6 +22,11 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
+from openswarm.models import TaskStatus
+from openswarm.oix_handoff import OIXTaskHandoff
+from openswarm.queue import TaskQueue
+from openswarm.runtime import SwarmRuntime, Worker
+
 from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
@@ -29,12 +34,6 @@ from oix.policy import CapabilityPolicy
 from oix.prekeys import SQLitePreKeyStore, create_prekey_bundle, encrypt_prekey_envelope
 from oix.result_channel import SQLiteResultPublisher
 from oix.transport import OIXMutualTLSServer, send_encrypted_envelope
-
-from openswarm.models import TaskStatus
-from openswarm.oix_handoff import OIXTaskHandoff
-from openswarm.queue import TaskQueue
-from openswarm.runtime import SwarmRuntime, Worker
-
 
 def _tls_material(root: Path) -> tuple[Path, ...]:
     """Create a short-lived test CA, server cert, and two client certificates."""
@@ -111,7 +110,9 @@ def _tls_material(root: Path) -> tuple[Path, ...]:
         ))
         return cert_path, key_path
 
-    server_cert, server_key = issue("oix-loopback-server", ExtendedKeyUsageOID.SERVER_AUTH, server=True)
+    server_cert, server_key = issue(
+        "oix-loopback-server", ExtendedKeyUsageOID.SERVER_AUTH, server=True
+    )
     peer_cert, peer_key = issue("oix-peer-client", ExtendedKeyUsageOID.CLIENT_AUTH)
     local_cert, local_key = issue("oix-local-client", ExtendedKeyUsageOID.CLIENT_AUTH)
     return ca_path, server_cert, server_key, peer_cert, peer_key, local_cert, local_key
