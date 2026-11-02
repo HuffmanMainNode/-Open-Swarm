@@ -5,6 +5,8 @@ on:
     branches:
       - integration/phase-2-oix-atomic-handoff
       - integration/phase-3-oix-result-outbox
+      - integration/phase-3-oix-result-outbox
+      - integration/phase-4-oix-secure-result-integration
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
@@ -20,11 +22,11 @@ jobs:
     steps:
       - name: Check out Open-Swarm
         uses: actions/checkout@v4
-      - name: Check out OIX Phase 3
+      - name: Check out OIX Phase 4
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: integration/phase-3-signed-result-channel
+          ref: integration/phase-4-confidential-envelope
           path: Open-Intelligence-Exchange
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -39,3 +41,5 @@ jobs:
         run: python examples/oix_handoff_demo.py
       - name: Run signed OIX result return demonstration
         run: python examples/oix_result_demo.py
+      - name: Run encrypted OIX request and result round trip
+        run: python examples/oix_secure_result_demo.py
