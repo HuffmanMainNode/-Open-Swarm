@@ -50,3 +50,32 @@ Run the synthetic demonstration with `python examples/cisa_kev_ingestion_demo.py
 - The supervisor does not perform vulnerability matching against local assets, execute remediation, or trigger consequential actions.
 
 For current state, call `supervisor.status()`. It reports checkpoints, due times, lease state, last success, and error classes without exposing exception messages or private source details.
+
+
+## Operator command
+
+After installing Open-Swarm and Huffman Cyber Observatory in the same environment:
+
+```bash
+openswarm-ingest-cisa-kev --events-db .openswarm/events.sqlite3 --interval 300
+```
+
+Run one poll and exit:
+
+```bash
+openswarm-ingest-cisa-kev --events-db .openswarm/events.sqlite3 --once
+```
+
+Inspect persisted source state:
+
+```bash
+openswarm-ingest-cisa-kev --events-db .openswarm/events.sqlite3 --status
+```
+
+Opt into a bounded historical catalog backfill:
+
+```bash
+openswarm-ingest-cisa-kev --events-db .openswarm/events.sqlite3 --initial-backfill
+```
+
+The command runs in the foreground and stops with Ctrl+C. It logs event counts and exception classes, not exception messages or source response bodies.
