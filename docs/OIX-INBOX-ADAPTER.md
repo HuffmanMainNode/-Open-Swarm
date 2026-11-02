@@ -74,3 +74,18 @@ The command prints durable handoff receipts. It does not run tasks. Inspect the 
 openswarm --db .openswarm/state.sqlite3 tasks
 openswarm --db .openswarm/state.sqlite3 audit --limit 50
 ```
+
+
+## End-to-end local demonstration
+
+The repository includes `examples/oix_handoff_demo.py`. It creates two temporary Ed25519 identities, signs a real OIX `task.request`, verifies it through `SQLiteInbox`, explicitly approves it, hands it into Open-Swarm using the shared database, and executes it with the deterministic mock adapter.
+
+Install both projects in one environment, then run:
+
+```bash
+python -m pip install -e ../Open-Intelligence-Exchange
+python -m pip install -e .
+python examples/oix_handoff_demo.py
+```
+
+The example creates only temporary keys and a temporary database, uses no hosted model, and opens no network port. It demonstrates request acceptance and local task-result generation. A signed `task.result` return message and live network transport are separate future work; this adapter does not claim remote result delivery.
