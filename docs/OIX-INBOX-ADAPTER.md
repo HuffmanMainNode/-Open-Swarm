@@ -164,3 +164,6 @@ The cross-repository secure round trip now uses signed one-time X25519 prekey bu
 - The sender verifies the receipt before finalizing delivery.
 
 The example also checks that a retry reuses the exact persisted encrypted wrapper. Prekey private material is local to each peer and never included in the public bundle. This remains a local demonstration; it does not provide bundle discovery, remote reservation, replenishment automation, or network transport. Forward-secrecy benefits depend on secure deletion and the absence of recoverable key copies in backups or storage snapshots.
+
+
+The Phase 7 OIX integration additionally places each peer's prekey table and inbox tables in the same SQLite database. `consume_and_receive()` performs AEAD decryption, inner-signature verification, inbox policy/trust checks, durable inbox insertion, and one-time-prekey deletion in a single SQLite transaction. If inbox validation or persistence fails, the transaction rolls back and the prekey remains available. This closes the crash window where a key could be consumed before the message was durably accepted.
