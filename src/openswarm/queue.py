@@ -124,6 +124,10 @@ class TaskQueue:
         )
 
     def submit(self, task: Task) -> Task:
+        if not isinstance(task.max_attempts, int) or isinstance(task.max_attempts, bool):
+            raise TypeError("max_attempts must be an integer")
+        if task.max_attempts < 1:
+            raise ValueError("max_attempts must be positive")
         if task.requires_approval:
             task.status = TaskStatus.PENDING_APPROVAL
             task.approved = False
