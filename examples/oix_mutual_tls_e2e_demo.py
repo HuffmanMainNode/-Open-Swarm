@@ -22,11 +22,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
-from openswarm.models import TaskStatus
-from openswarm.oix_handoff import OIXTaskHandoff
-from openswarm.queue import TaskQueue
-from openswarm.runtime import SwarmRuntime, Worker
-
 from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
@@ -34,6 +29,11 @@ from oix.policy import CapabilityPolicy
 from oix.prekeys import SQLitePreKeyStore, create_prekey_bundle, encrypt_prekey_envelope
 from oix.result_channel import SQLiteResultPublisher
 from oix.transport import OIXMutualTLSServer, send_encrypted_envelope
+
+from openswarm.models import TaskStatus
+from openswarm.oix_handoff import OIXTaskHandoff
+from openswarm.queue import TaskQueue
+from openswarm.runtime import SwarmRuntime, Worker
 
 def _tls_material(root: Path) -> tuple[Path, ...]:
     """Create a short-lived test CA, server cert, and two client certificates."""
