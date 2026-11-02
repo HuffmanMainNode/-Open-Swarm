@@ -105,3 +105,8 @@ Phase 6 interoperability exercises signed one-time-prekey bundles in both direct
 
 
 The Phase 7 interoperability workflow checks out OIX's atomic prekey/inbox acceptance implementation. Each receiver now commits message acceptance and one-time-key consumption in a single local SQLite transaction; inbox failure rolls both back.
+
+
+### Mutual-TLS interoperability demonstration
+
+With OIX Phase 8 installed, run `python examples/oix_mutual_tls_e2e_demo.py` to exercise encrypted task requests and results over real mutual-TLS loopback connections between two independent OIX identities and databases. The demo requires explicit inbox approval, uses the Open-Swarm mock worker, verifies signed delivery receipts in both directions, and reports that both agents run on one physical host. It is a network integration test, not a WAN deployment claim.

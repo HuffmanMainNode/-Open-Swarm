@@ -167,3 +167,22 @@ The example also checks that a retry reuses the exact persisted encrypted wrappe
 
 
 The Phase 7 OIX integration additionally places each peer's prekey table and inbox tables in the same SQLite database. `consume_and_receive()` performs AEAD decryption, inner-signature verification, inbox policy/trust checks, durable inbox insertion, and one-time-prekey deletion in a single SQLite transaction. If inbox validation or persistence fails, the transaction rolls back and the prekey remains available. This closes the crash window where a key could be consumed before the message was durably accepted.
+
+
+## Phase 7: mutual-TLS network interoperability
+
+The new example, `examples/oix_mutual_tls_e2e_demo.py`, exercises the OIX Phase 8 framed transport across two independent OIX agent identities and two separate SQLite databases.
+
+The demonstration:
+1. Creates independent peer and receiver identities, each with its own inbox and one-time-prekey store.
+2. Creates short-lived test TLS certificates signed by a temporary test CA.
+3. Starts two OIX mutual-TLS listeners bound only to loopback.
+4. Sends an encrypted `task.request` over a real TCP/TLS connection and verifies the receiver's signed, digest-bound receipt.
+5. Confirms durable OIX inbox acceptance, applies explicit operator approval, and atomically hands the task into Open-Swarm.
+6. Runs the task using the deterministic local mock worker.
+7. Stages and approves the result, encrypts it to the original peer's one-time prekey, and sends it over the second mutual-TLS connection.
+8. Verifies the peer's signed receipt and confirms that the peer's independent inbox durably stores the `task.result`.
+
+The example reports `physical_hosts=1`: it proves a network exchange between separate agent identities and databases over loopback, not a WAN or multi-host deployment. It uses no hosted model, paid API, central relay, or public listener.
+
+The interoperability workflow checks out OIX Phase 8 and runs this demonstration alongside the prior local, signed, and encrypted handoff demonstrations. The Open-Swarm queue and OIX receiver inbox share one local database for the atomic handoff; the requesting peer remains on its own database.
