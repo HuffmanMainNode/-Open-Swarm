@@ -27,7 +27,12 @@ from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
 from oix.prekeys import SQLitePreKeyStore, create_prekey_bundle, encrypt_prekey_envelope
 from oix.result_channel import SQLiteResultPublisher
-from oix.transport import OIXMutualTLSServer, agent_identity_uri, send_encrypted_envelope
+from oix.transport import (
+    OIXMutualTLSServer,
+    agent_identity_uri,
+    send_encrypted_envelope,
+    send_encrypted_stream,
+)
 
 from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
@@ -171,8 +176,6 @@ async def _exchange(root: Path) -> dict[str, object]:
     peer_inbox = SQLiteInbox(peer_db, peer_id)
     peer_inbox.trust_peer(local_card)
     local_prekeys, peer_prekeys = SQLitePreKeyStore(local_db), SQLitePreKeyStore(peer_db)
-    local_bundle = create_prekey_bundle(local_prekeys, local_sign, count=4)
-    peer_bundle = create_prekey_bundle(peer_prekeys, peer_sign, count=4)
 
     (
         ca,
@@ -199,94 +202,147 @@ async def _exchange(root: Path) -> dict[str, object]:
     local_client = _client_tls(ca, local_cert, local_key)
 
     try:
-        request = create_message(
-            peer_sign,
-            local_id,
-            "task.request",
-            {
-                "worker": "general",
-                "adapter": "mock",
-                "prompt": "Summarize the public OIX protocol purpose in one sentence.",
-                "capabilities": ["public.research"],
-            },
-            capability="public.research",
-        )
-        sealed_request = encrypt_prekey_envelope(
-            request, local_bundle, local_sign.public_key().public_bytes_raw()
-        )
-        request_receipt = await send_encrypted_envelope(
-            sealed_request,
+        requests = [
+            create_message(
+                peer_sign,
+                local_id,
+                "task.request",
+                {
+                    "worker": "general",
+                    "adapter": "mock",
+                    "prompt": prompt,
+                    "capabilities": ["public.research"],
+                },
+                capability="public.research",
+            )
+            for prompt in (
+                "Summarize the public OIX protocol purpose in one sentence.",
+                "List the OIX trust checks that precede task approval.",
+            )
+        ]
+        local_bundles = [
+            create_prekey_bundle(local_prekeys, local_sign, count=1)
+            for _ in requests
+        ]
+        peer_bundles = [
+            create_prekey_bundle(peer_prekeys, peer_sign, count=1)
+            for _ in requests
+        ]
+        sealed_requests = [
+            encrypt_prekey_envelope(
+                request,
+                local_bundles[index],
+                local_sign.public_key().public_bytes_raw(),
+            )
+            for index, request in enumerate(requests)
+        ]
+        request_receipts = await send_encrypted_stream(
+            sealed_requests,
+            expected_message_ids=[
+                request["body"]["message_id"] for request in requests
+            ],
             host=local_host,
             port=local_port,
             server_hostname="localhost",
             ssl_context=peer_client,
             local_agent_id=peer_id,
             expected_peer_agent_id=local_id,
-            expected_message_id=request["body"]["message_id"],
             expected_peer_signing_public_key=local_sign.public_key().public_bytes_raw(),
         )
-        if request_receipt["body"]["type"] != "delivery.receipt":
-            raise RuntimeError("receiver did not return a signed request receipt")
+        if len(request_receipts) != len(requests) or any(
+            receipt["body"]["type"] != "delivery.receipt"
+            for receipt in request_receipts
+        ):
+            raise RuntimeError("request stream did not return every signed receipt")
 
         pending = local_inbox.pending_work()
-        if len(pending) != 1 or pending[0]["message_id"] != request["body"]["message_id"]:
-            raise RuntimeError("request was not durably accepted into the OIX inbox")
-        local_inbox.decide_work(pending[0]["work_id"], approve=True)
+        pending_by_message = {item["message_id"]: item for item in pending}
+        if len(pending_by_message) != len(requests):
+            raise RuntimeError("request stream was not durably accepted into the OIX inbox")
+        for request in requests:
+            work = pending_by_message.get(request["body"]["message_id"])
+            if work is None:
+                raise RuntimeError("a streamed request is missing from the durable inbox")
+            local_inbox.decide_work(work["work_id"], approve=True)
 
         queue = TaskQueue(local_db)
-        handoff = OIXTaskHandoff(queue).handoff_one(peer_id, request["body"]["message_id"])
-        task = SwarmRuntime(
+        handoff_adapter = OIXTaskHandoff(queue)
+        handoffs = [
+            handoff_adapter.handoff_one(peer_id, request["body"]["message_id"])
+            for request in requests
+        ]
+        runtime = SwarmRuntime(
             queue, workers=[Worker("general", {"public.research"})]
-        ).run_once()
-        if task is None or task.status != TaskStatus.SUCCEEDED:
-            raise RuntimeError("Open-Swarm mock task did not succeed")
+        )
+        tasks = [runtime.run_once() for _ in requests]
+        if any(task is None or task.status != TaskStatus.SUCCEEDED for task in tasks):
+            raise RuntimeError("one or more Open-Swarm mock tasks did not succeed")
 
         publisher = SQLiteResultPublisher(local_db, local_id, local_sign)
-        publisher.decide(task.task_id, approve=True)
-        signed_result = publisher.sign_approved(task.task_id)
-        sealed_result = publisher.encrypt_approved_with_prekey(
-            task.task_id, peer_bundle, peer_sign.public_key().public_bytes_raw()
-        )
-        if publisher.encrypt_approved_with_prekey(
-            task.task_id, peer_bundle, peer_sign.public_key().public_bytes_raw()
-        ) != sealed_result:
-            raise RuntimeError("result retry did not reuse its persisted encrypted envelope")
+        signed_results = []
+        sealed_results = []
+        for index, task in enumerate(tasks):
+            publisher.decide(task.task_id, approve=True)
+            signed = publisher.sign_approved(task.task_id)
+            sealed = publisher.encrypt_approved_with_prekey(
+                task.task_id,
+                peer_bundles[index],
+                peer_sign.public_key().public_bytes_raw(),
+            )
+            retry = publisher.encrypt_approved_with_prekey(
+                task.task_id,
+                peer_bundles[index],
+                peer_sign.public_key().public_bytes_raw(),
+            )
+            if retry != sealed:
+                raise RuntimeError("result retry did not reuse its persisted encrypted envelope")
+            signed_results.append(signed)
+            sealed_results.append(sealed)
 
-        result_receipt = await send_encrypted_envelope(
-            sealed_result,
+        result_receipts = await send_encrypted_stream(
+            sealed_results,
+            expected_message_ids=[
+                result["body"]["message_id"] for result in signed_results
+            ],
             host=peer_host,
             port=peer_port,
             server_hostname="localhost",
             ssl_context=local_client,
             local_agent_id=local_id,
             expected_peer_agent_id=peer_id,
-            expected_message_id=signed_result["body"]["message_id"],
             expected_peer_signing_public_key=peer_sign.public_key().public_bytes_raw(),
         )
-        if not publisher.mark_delivered(
-            task.task_id, result_receipt, peer_sign.public_key().public_bytes_raw()
-        ):
-            raise RuntimeError("first verified delivery receipt did not finalize result")
+        if len(result_receipts) != len(signed_results):
+            raise RuntimeError("result stream did not return every signed receipt")
+        for task, receipt in zip(tasks, result_receipts, strict=True):
+            if not publisher.mark_delivered(
+                task.task_id, receipt, peer_sign.public_key().public_bytes_raw()
+            ):
+                raise RuntimeError("verified delivery receipt did not finalize result")
 
+        result_ids = [result["body"]["message_id"] for result in signed_results]
         with sqlite3.connect(peer_db) as db:
-            row = db.execute(
-                """SELECT message_type,content_sha256 FROM inbox_messages
-                   WHERE sender=? AND message_id=?""",
-                (local_id, signed_result["body"]["message_id"]),
-            ).fetchone()
-        if row is None or row[0] != "task.result":
-            raise RuntimeError("peer inbox did not durably store the task.result message")
+            placeholders = ",".join("?" for _ in result_ids)
+            rows = db.execute(
+                f"""SELECT message_id,message_type FROM inbox_messages
+                    WHERE sender=? AND message_id IN ({placeholders})""",
+                [local_id, *result_ids],
+            ).fetchall()
+        if len(rows) != len(result_ids) or any(row[1] != "task.result" for row in rows):
+            raise RuntimeError("peer inbox did not durably store every streamed task.result")
 
         return {
-            "request_message_id": request["body"]["message_id"],
-            "request_receipt_verified": True,
-            "task_id": handoff.task_id,
-            "task_status": task.status.value,
-            "result_message_id": signed_result["body"]["message_id"],
-            "result_receipt_verified": True,
-            "peer_result_inbox_durable": True,
-            "result_retry_reused_envelope": True,
-            "network_transport": "mutual_tls_loopback",
+            "request_count": len(requests),
+            "request_stream_receipts_verified": len(request_receipts),
+            "task_ids": [handoff.task_id for handoff in handoffs],
+            "task_statuses": [task.status.value for task in tasks],
+            "result_count": len(signed_results),
+            "result_stream_receipts_verified": len(result_receipts),
+            "peer_results_durably_accepted": len(rows),
+            "result_retries_reused_persisted_envelopes": True,
+            "network_transport": "mutual_tls_persistent_loopback_streams",
+            "request_stream_connections": 1,
+            "result_stream_connections": 1,
             "agent_databases_independent": True,
             "physical_hosts": 1,
             "model_adapter": "mock",
