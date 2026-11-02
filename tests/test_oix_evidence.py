@@ -92,10 +92,11 @@ def test_approved_evidence_atomically_becomes_classified_platform_event(tmp_path
     assert row is not None
     assert row[0] == "intelligence.evidence.submitted"
     assert row[1] == f"oix:{sender_id}"
-    assert row[2] == "public"
+    assert row[2] == "internal"
     assert json.loads(row[3]) == [f"oix:evidence:{evidence_payload()['evidence_id']}"]
     event_payload = json.loads(row[4])
     assert event_payload["evidence"] == evidence_payload()
+    assert event_payload["source_asserted_classification"] == "public"
     assert event_payload["classification_is_sender_asserted"] is True
     assert "artifact_bytes" not in event_payload
     assert status == "ingested"
