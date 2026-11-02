@@ -1,10 +1,13 @@
 import json
 import sqlite3
 import uuid
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from openswarm.models import Task, TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
-from openswarm.queue import TaskQueue
+from openswarm.queue import LeaseOwnershipError, TaskQueue
 
 
 def _shared_queue(path):
@@ -126,7 +129,6 @@ def test_result_outbox_failure_rolls_back_terminal_state_and_audit(tmp_path):
         before_outbox = db.execute(
             "SELECT COUNT(*) FROM integration_outbox"
         ).fetchone()[0]
-    import pytest
     with pytest.raises(sqlite3.IntegrityError, match="simulated result outbox failure"):
         queue.finish(claimed, TaskStatus.SUCCEEDED, result="must remain local")
     with sqlite3.connect(path) as db:
@@ -144,10 +146,6 @@ def test_result_outbox_failure_rolls_back_terminal_state_and_audit(tmp_path):
 
 
 def test_stale_worker_cannot_stage_oix_result(tmp_path):
-    from datetime import UTC, datetime, timedelta
-    import pytest
-    from openswarm.queue import LeaseOwnershipError
-
     path = tmp_path / "shared.sqlite3"
     queue, sender, message_id = _shared_queue(path)
     receipt = OIXTaskHandoff(queue).handoff_one(sender, message_id)
