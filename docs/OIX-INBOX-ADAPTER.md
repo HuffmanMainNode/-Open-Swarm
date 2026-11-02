@@ -218,7 +218,7 @@ Requirements and guarantees:
 - The adapter rechecks the stored envelope signature, sender identity, recipient, message ID, and evidence schema before publishing.
 - One `BEGIN IMMEDIATE` transaction appends the platform event, records the ingestion audit, and changes the OIX work status from `approved` to `ingested`.
 - Event IDs are deterministic for the sender/message pair. Retrying an already ingested record returns the original event receipt rather than creating a second event.
-- Evidence classification is preserved but explicitly marked as sender-asserted. It is not an independent trust verdict.
+- The sender's evidence classification is preserved as metadata and explicitly marked sender-asserted. It never downgrades the local event handling level: sender labels `public` and `internal` map to local `internal`, while `restricted` remains `restricted`.
 - Only metadata and artifact hashes are exchanged. The adapter does not fetch source URLs, download artifacts, execute code, or interpret evidence as instructions.
 
 Install OIX alongside Open-Swarm to use this optional adapter. The Open-Swarm core remains independently usable without OIX. The cross-repository workflow checks out OIX Phase 11, runs dedicated adapter regression tests, and exercises a persistent mutual-TLS stream containing two task requests and one evidence submission. Task requests remain operator-approved before Open-Swarm execution; evidence requires a separate review approval before it enters the event journal.
