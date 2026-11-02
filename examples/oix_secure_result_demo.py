@@ -13,6 +13,7 @@ from oix.policy import CapabilityPolicy
 from oix.prekeys import (
     SQLitePreKeyStore,
     create_prekey_bundle,
+    encrypt_prekey_envelope,
 )
 from oix.receipts import create_delivery_receipt, message_digest
 from oix.result_channel import SQLiteResultPublisher
