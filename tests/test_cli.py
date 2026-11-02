@@ -56,3 +56,28 @@ def test_cli_demo_completes_with_succeeded_mock_task(tmp_path, monkeypatch, caps
     result = json.loads(capsys.readouterr().out)
     assert result["result"]["status"] == TaskStatus.SUCCEEDED
     assert "[mock response]" in result["result"]["result"]
+
+
+
+def test_cli_relay_status_and_single_pass(tmp_path, monkeypatch, capsys):
+    database = str(tmp_path / "tasks.sqlite3")
+    events_database = str(tmp_path / "events.sqlite3")
+    _run_cli(
+        monkeypatch,
+        ["--db", database, "submit", "--task", "relay me"],
+    )
+    capsys.readouterr()
+
+    _run_cli(
+        monkeypatch,
+        ["--db", database, "relay-status", "--events-db", events_database],
+    )
+    status = json.loads(capsys.readouterr().out)
+    assert status["pending"] == 1
+
+    _run_cli(
+        monkeypatch,
+        ["--db", database, "relay-once", "--events-db", events_database],
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert result == {"published": 1, "duplicates": 0, "pending": 0}
