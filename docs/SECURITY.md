@@ -13,6 +13,8 @@
 
 ## Limitations
 
-The denied prompt marker check is a narrow filter, not a prompt-injection defense. Worker capability names are labels checked by the runtime against a worker declaration; they are not permission grants enforced inside adapters. A custom or compromised adapter can still use the host process privileges available to it.\n\nThese are application-level guardrails, not a hardened sandbox. The runtime does not execute generated code, isolate processes, provide multi-tenant security, or prevent a compromised adapter from using host process privileges. Model output can still be misleading or unsafe.
+The denied prompt marker check is a narrow filter, not a prompt-injection defense. Worker capability names are labels checked by the runtime against a worker declaration; they are not permission grants enforced inside adapters. A custom or compromised adapter can still use the host process privileges available to it.
+
+These are application-level guardrails, not a hardened sandbox. The runtime does not execute generated code, isolate processes, provide multi-tenant security, or prevent a compromised adapter from using host process privileges. Model output can still be misleading or unsafe.
 
 Before production use, add OS-level sandboxing, authenticated operator identity, secret management, signed audit exports, migrations, concurrency tests, rate limits, dependency scanning, and independent security review.
