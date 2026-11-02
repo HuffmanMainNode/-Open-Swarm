@@ -10,7 +10,8 @@ Open-Swarm is a small Python runtime for assigning bounded tasks to specialist w
 
 New operators: start with [Human Onboarding](docs/USER-ONBOARDING.md). AI agents and developers: read [Agent Onboarding](docs/AGENT-ONBOARDING.md) and [AGENTS.md](AGENTS.md) before submitting or processing tasks. The mock adapter is the recommended first-run path.
 
-## Quick start\n
+## Quick start
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
