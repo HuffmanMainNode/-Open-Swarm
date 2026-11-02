@@ -4,7 +4,7 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from openswarm.events import EventValidationError, PlatformEvent, SQLiteEventBus
+from openswarm.events import PlatformEvent, SQLiteEventBus
 from openswarm.ingestion import (
     IngestionSupervisor,
     SourceBatch,
