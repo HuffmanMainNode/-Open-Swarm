@@ -13,6 +13,7 @@ on:
       - integration/phase-9-oix-persistent-streams
       - integration/phase-10-oix-evidence-event-ingestion
       - integration/phase-11-osint-evidence-sources
+      - integration/phase-12-continuous-ingestion-supervisor
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
@@ -25,6 +26,7 @@ on:
       - integration/phase-8-oix-agent-bound-mtls
       - integration/phase-9-oix-persistent-streams
       - integration/phase-10-oix-evidence-event-ingestion
+      - integration/phase-11-osint-evidence-sources
   workflow_dispatch:
 
 permissions:
@@ -67,6 +69,10 @@ jobs:
           python -m pip install -e ".[dev]"
       - name: Run OIX evidence ingestion regression tests
         run: pytest tests/test_oix_evidence.py
+      - name: Run CISA KEV source adapter tests
+        run: pytest tests/test_cisa_kev_source.py tests/test_ingest_cli.py
+      - name: Run continuous ingestion demonstration
+        run: python examples/cisa_kev_ingestion_demo.py
       - name: Run real OIX-to-Open-Swarm request handoff
         run: python examples/oix_handoff_demo.py
       - name: Run signed OIX result return demonstration
