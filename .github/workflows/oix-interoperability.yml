@@ -7,6 +7,7 @@ on:
       - integration/phase-3-oix-result-outbox
       - integration/phase-4-oix-secure-result-integration
       - integration/phase-5-oix-authenticated-receipts
+      - integration/phase-6-oix-one-time-prekey-exchange
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
@@ -24,11 +25,11 @@ jobs:
     steps:
       - name: Check out Open-Swarm
         uses: actions/checkout@v4
-      - name: Check out OIX Phase 5
+      - name: Check out OIX Phase 6
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: integration/phase-5-peer-lifecycle-receipts
+          ref: integration/phase-6-one-time-prekeys
           path: Open-Intelligence-Exchange
       - name: Set up Python
         uses: actions/setup-python@v5
