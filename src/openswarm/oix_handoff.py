@@ -70,6 +70,7 @@ class OIXTaskHandoff:
         self.queue = queue
         self.database = queue.database
         with self.queue._connect() as db:
+            db.execute("PRAGMA foreign_keys=ON")
             self._require_oix_schema(db)
             db.execute(
                 """
@@ -102,6 +103,11 @@ class OIXTaskHandoff:
         if not required.issubset(tables):
             missing = ", ".join(sorted(required - tables))
             raise OIXSchemaError(f"missing OIX inbox tables: {missing}")
+        inbox_columns = {
+            row["name"] for row in db.execute("PRAGMA table_info(inbox_messages)")
+        }
+        if not {"sender", "message_id"}.issubset(inbox_columns):
+            raise OIXSchemaError("OIX inbox_messages schema is incompatible")
         columns = {
             row["name"] for row in db.execute("PRAGMA table_info(inbound_work)")
         }
@@ -192,6 +198,7 @@ class OIXTaskHandoff:
             raise ValueError("message_id must be a non-empty string")
 
         with self.queue._connect() as db:
+            db.execute("PRAGMA foreign_keys=ON")
             db.execute("BEGIN IMMEDIATE")
             self._require_oix_schema(db)
             existing = db.execute(
