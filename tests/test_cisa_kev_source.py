@@ -65,9 +65,7 @@ def test_changed_feed_emits_same_day_and_newer_records_with_stable_ids():
     ]
     assert all(item.event_type == "intelligence.vulnerability.kev_added" for item in batch.events)
     assert all(item.classification == "internal" for item in batch.events)
-    assert batch.events[0].event_id == batch.events[1].event_id or (
-        batch.events[0].event_id != batch.events[1].event_id
-    )
+    assert len({item.event_id for item in batch.events}) == 3
     assert json.loads(batch.checkpoint)["last_date"] == "2026-11-02"
 
 
