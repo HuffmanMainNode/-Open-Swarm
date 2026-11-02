@@ -70,7 +70,7 @@ jobs:
       - name: Run OIX evidence ingestion regression tests
         run: pytest tests/test_oix_evidence.py
       - name: Run CISA KEV source adapter tests
-        run: pytest tests/test_cisa_kev_source.py
+        run: pytest tests/test_cisa_kev_source.py tests/test_ingest_cli.py
       - name: Run continuous ingestion demonstration
         run: python examples/cisa_kev_ingestion_demo.py
       - name: Run real OIX-to-Open-Swarm request handoff
