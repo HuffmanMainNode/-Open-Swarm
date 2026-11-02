@@ -17,23 +17,96 @@
     "causation_id"
   ],
   "properties": {
-    "event_id": { "type": "string", "format": "uuid" },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
     "event_type": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$",
       "maxLength": 128
     },
-    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
-    "occurred_at": { "type": "string", "format": "date-time" },
-    "source": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "classification": { "enum": ["public", "internal", "restricted"] },
-    "payload": { "type": "object" },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "classification": {
+      "enum": [
+        "public",
+        "internal",
+        "restricted"
+      ]
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 10000,
+      "additionalProperties": {
+        "$ref": "#/$defs/jsonValue"
+      }
+    },
     "evidence_refs": {
       "type": "array",
       "maxItems": 100,
-      "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
     },
-    "correlation_id": { "type": ["string", "null"], "maxLength": 128 },
-    "causation_id": { "type": ["string", "null"], "maxLength": 128 }
+    "correlation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 128
+    },
+    "causation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 128
+    }
+  },
+  "$defs": {
+    "jsonValue": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 10000,
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    }
   }
 }
