@@ -38,13 +38,16 @@ def main() -> None:
 
         # Each side publishes signed public prekeys while retaining private
         # one-time keys in its own local, owner-only SQLite store.
-        peer_prekeys = SQLitePreKeyStore(root / "peer-prekeys.sqlite3")
-        local_prekeys = SQLitePreKeyStore(root / "local-prekeys.sqlite3")
+        inbox = SQLiteInbox(database, local_id, CapabilityPolicy({"public.research"}))
+        inbox.trust_peer(peer_card)
+        peer_database = root / "peer-inbox.sqlite3"
+        peer_inbox = SQLiteInbox(peer_database, peer_id)
+        peer_inbox.trust_peer(local_card)
+        peer_prekeys = SQLitePreKeyStore(peer_database)
+        local_prekeys = SQLitePreKeyStore(database)
         peer_bundle = create_prekey_bundle(peer_prekeys, peer_sign, count=8)
         local_bundle = create_prekey_bundle(local_prekeys, local_sign, count=8)
 
-        inbox = SQLiteInbox(database, local_id, CapabilityPolicy({"public.research"}))
-        inbox.trust_peer(peer_card)
         request = create_message(
             peer_sign,
             local_id,
@@ -60,13 +63,13 @@ def main() -> None:
         sealed_request = encrypt_prekey_envelope(
             request, local_bundle, local_sign.public_key().public_bytes_raw()
         )
-        opened_request = local_prekeys.consume_and_decrypt(
+        opened_request, received = local_prekeys.consume_and_receive(
             sealed_request,
+            inbox,
             local_sign.public_key().public_bytes_raw(),
             peer_sign.public_key().public_bytes_raw(),
             local_id,
         )
-        received = inbox.receive(opened_request)
         inbox.decide_work(received.work_id, approve=True)
 
         queue = TaskQueue(database)
@@ -95,8 +98,9 @@ def main() -> None:
         if retry != sealed_result:
             raise RuntimeError("retry did not reuse the persisted one-time-prekey wrapper")
 
-        opened_result = peer_prekeys.consume_and_decrypt(
+        opened_result, accepted = peer_prekeys.consume_and_receive(
             sealed_result,
+            peer_inbox,
             peer_sign.public_key().public_bytes_raw(),
             local_sign.public_key().public_bytes_raw(),
             peer_id,
@@ -104,10 +108,7 @@ def main() -> None:
         if opened_result != signed_result:
             raise RuntimeError("one-time-prekey result decryption or signature verification failed")
 
-        # The peer durably stores the result before signing a digest-bound receipt.
-        peer_inbox = SQLiteInbox(root / "peer-inbox.sqlite3", peer_id)
-        peer_inbox.trust_peer(local_card)
-        accepted = peer_inbox.receive(opened_result)
+        # The peer inbox and prekey store share a transaction for acceptance.
         if accepted.message_id != opened_result["body"]["message_id"]:
             raise RuntimeError("peer inbox did not accept the expected result")
         delivery_receipt = create_delivery_receipt(
