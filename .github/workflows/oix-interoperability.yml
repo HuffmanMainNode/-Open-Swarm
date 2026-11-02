@@ -8,7 +8,6 @@ on:
       - integration/phase-4-oix-secure-result-integration
       - integration/phase-5-oix-authenticated-receipts
       - integration/phase-6-oix-one-time-prekey-exchange
-      - integration/phase-6-oix-one-time-prekey-exchange
       - integration/phase-7-oix-mutual-tls-e2e
   pull_request:
     branches:
@@ -17,6 +16,7 @@ on:
       - integration/phase-3-oix-result-outbox
       - integration/phase-4-oix-secure-result-integration
       - integration/phase-5-oix-authenticated-receipts
+      - integration/phase-6-oix-one-time-prekey-exchange
   workflow_dispatch:
 
 permissions:
