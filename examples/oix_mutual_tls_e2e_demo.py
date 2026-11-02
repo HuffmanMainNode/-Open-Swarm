@@ -30,7 +30,6 @@ from oix.result_channel import SQLiteResultPublisher
 from oix.transport import (
     OIXMutualTLSServer,
     agent_identity_uri,
-    send_encrypted_envelope,
     send_encrypted_stream,
 )
 
