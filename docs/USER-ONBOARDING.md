@@ -8,7 +8,7 @@ Python 3.11+:
 
 ```bash
 git clone https://github.com/HuffmanMainNode/-Open-Swarm.git
-cd -Open-Swarm
+cd -- -Open-Swarm
 python -m venv .venv
 # Linux/macOS
 source .venv/bin/activate
