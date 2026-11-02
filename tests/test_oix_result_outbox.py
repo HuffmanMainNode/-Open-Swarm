@@ -2,7 +2,7 @@ import json
 import sqlite3
 import uuid
 
-from openswarm.models import TaskStatus
+from openswarm.models import Task, TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
 
@@ -76,9 +76,7 @@ def test_terminal_remote_task_creates_pending_approval_result_atomically(tmp_pat
 def test_local_task_does_not_create_oix_result(tmp_path):
     path = tmp_path / "shared.sqlite3"
     queue, _, _ = _shared_queue(path)
-    local = queue.submit(__import__("openswarm.models", fromlist=["Task"]).Task(
-        worker="general", prompt="local-only"
-    ))
+    local = queue.submit(Task(worker="general", prompt="local-only"))
     claimed = queue.claim()
     assert claimed.task_id == local.task_id
     queue.finish(claimed, TaskStatus.SUCCEEDED, result="local result")
