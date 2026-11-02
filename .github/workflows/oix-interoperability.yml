@@ -11,6 +11,7 @@ on:
       - integration/phase-7-oix-mutual-tls-e2e
       - integration/phase-8-oix-agent-bound-mtls
       - integration/phase-9-oix-persistent-streams
+      - integration/phase-10-oix-evidence-event-ingestion
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
@@ -21,6 +22,7 @@ on:
       - integration/phase-6-oix-one-time-prekey-exchange
       - integration/phase-7-oix-mutual-tls-e2e
       - integration/phase-8-oix-agent-bound-mtls
+      - integration/phase-9-oix-persistent-streams
   workflow_dispatch:
 
 permissions:
@@ -32,11 +34,11 @@ jobs:
     steps:
       - name: Check out Open-Swarm
         uses: actions/checkout@v4
-      - name: Check out OIX Phase 10
+      - name: Check out OIX Phase 11
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: integration/phase-10-persistent-agent-streams
+          ref: integration/phase-11-evidence-submit-contract
           path: Open-Intelligence-Exchange
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -47,6 +49,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ./Open-Intelligence-Exchange
           python -m pip install -e ".[dev]"
+      - name: Run OIX evidence ingestion regression tests
+        run: pytest tests/test_oix_evidence.py
       - name: Run real OIX-to-Open-Swarm request handoff
         run: python examples/oix_handoff_demo.py
       - name: Run signed OIX result return demonstration
