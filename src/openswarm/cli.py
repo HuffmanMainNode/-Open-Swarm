@@ -6,6 +6,7 @@ import logging
 
 from openswarm.events import SQLiteEventBus
 from openswarm.models import Task, TaskStatus
+from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.relay import OutboxRelay
 from openswarm.runtime import SwarmRuntime, Worker
@@ -42,9 +43,26 @@ def main() -> None:
     relay_once.add_argument("--batch-size", type=int, default=100)
     relay_status = sub.add_parser("relay-status", help="show local outbox and relay health")
     relay_status.add_argument("--events-db", default=".openswarm/events.sqlite3")
+    oix_handoff = sub.add_parser(
+        "oix-handoff", help="atomically hand off approved OIX tasks from the shared SQLite database"
+    )
+    oix_handoff.add_argument("--limit", type=int, default=100)
     args = parser.parse_args()
     queue = TaskQueue(args.db)
-    if args.command in {"relay", "relay-once", "relay-status"}:
+    if args.command == "oix-handoff":
+        receipts = OIXTaskHandoff(queue).handoff_pending(limit=args.limit)
+        print(json.dumps([
+            {
+                "sender": receipt.sender,
+                "message_id": receipt.message_id,
+                "work_id": receipt.work_id,
+                "task_id": receipt.task_id,
+                "duplicate": receipt.duplicate,
+                "task_status": receipt.task_status,
+            }
+            for receipt in receipts
+        ], indent=2))
+    elif args.command in {"relay", "relay-once", "relay-status"}:
         relay_service = OutboxRelay(
             queue,
             SQLiteEventBus(args.events_db),
