@@ -4,9 +4,9 @@ import argparse
 import json
 import logging
 
+from openswarm.events import SQLiteEventBus
 from openswarm.models import Task, TaskStatus
 from openswarm.queue import TaskQueue
-from openswarm.events import SQLiteEventBus
 from openswarm.relay import OutboxRelay
 from openswarm.runtime import SwarmRuntime, Worker
 
