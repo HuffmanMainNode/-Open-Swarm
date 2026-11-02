@@ -27,7 +27,7 @@ from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
 from oix.prekeys import SQLitePreKeyStore, create_prekey_bundle, encrypt_prekey_envelope
 from oix.result_channel import SQLiteResultPublisher
-from oix.transport import agent_identity_uri, OIXMutualTLSServer, send_encrypted_envelope
+from oix.transport import OIXMutualTLSServer, agent_identity_uri, send_encrypted_envelope
 
 from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
