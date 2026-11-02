@@ -120,3 +120,8 @@ With OIX Phase 11 installed, `OIXEvidenceIngestor` can transfer an operator-appr
 ### Four-repository OSINT evidence exchange
 
 The optional bridges in Halloween OSINT and Huffman Cyber Observatory can sign local artifacts as OIX evidence records. The Open-Swarm interoperability workflow validates both sources through one persistent mutual-TLS exchange, applies separate operator approvals, and atomically ingests evidence into its event journal. See [OIX Inbox Adapter](docs/OIX-INBOX-ADAPTER.md) and run `python examples/osint_ecosystem_e2e_demo.py` in the cross-repository environment.
+
+
+### Continuous ingestion
+
+The checkpointed `IngestionSupervisor` runs explicit source adapters with SQLite leases, bounded batches, exponential retry backoff, idempotent event publication, and atomic checkpoint advancement. An optional CISA KEV adapter uses Huffman Cyber Observatory's fixed public feed client. See [Continuous Ingestion](docs/CONTINUOUS-INGESTION.md) and the synthetic fixture demo at `examples/cisa_kev_ingestion_demo.py`.
