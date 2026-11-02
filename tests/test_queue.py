@@ -146,3 +146,59 @@ def test_concurrent_claimers_cannot_claim_same_task(tmp_path):
     with ThreadPoolExecutor(max_workers=2) as executor:
         claims = list(executor.map(lambda queue: queue.claim(), queues))
     assert sum(claim is not None for claim in claims) == 1
+
+
+
+def test_legacy_unapproved_task_migrates_to_pending_approval(tmp_path):
+    path = tmp_path / "legacy.sqlite3"
+    task = Task(
+        worker="general",
+        prompt="legacy approval",
+        requires_approval=True,
+        status=TaskStatus.QUEUED,
+    )
+    payload = task.to_dict()
+    payload.pop("approved")
+    payload.pop("lease_id")
+    with sqlite3.connect(path) as db:
+        db.execute(
+            """
+            CREATE TABLE tasks (
+                task_id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE audit (
+                event_id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                task_id TEXT,
+                detail TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            "INSERT INTO tasks VALUES(?,?,?,?,?)",
+            (
+                task.task_id,
+                __import__("json").dumps(payload),
+                TaskStatus.QUEUED.value,
+                task.created_at,
+                task.updated_at,
+            ),
+        )
+
+    queue = TaskQueue(path)
+    migrated = queue.get(task.task_id)
+    assert migrated.status == TaskStatus.PENDING_APPROVAL
+    assert not migrated.approved
+    assert any(
+        event["event_type"] == "task.migrated_pending_approval"
+        for event in queue.audit()
+    )
