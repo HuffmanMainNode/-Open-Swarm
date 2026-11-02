@@ -74,6 +74,18 @@ class TaskQueue:
                     detail TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS integration_outbox (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT NOT NULL UNIQUE,
+                    event_type TEXT NOT NULL,
+                    task_id TEXT,
+                    detail TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    published_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_outbox_pending
+                    ON integration_outbox(published_at, sequence);
                 """
             )
             columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
@@ -112,16 +124,89 @@ class TaskQueue:
         return db
 
     def _event(self, db: sqlite3.Connection, event: AuditEvent) -> None:
+        detail = json.dumps(event.detail, sort_keys=True)
         db.execute(
             "INSERT INTO audit VALUES(?,?,?,?,?)",
             (
                 event.event_id,
                 event.event_type,
                 event.task_id,
-                json.dumps(event.detail, sort_keys=True),
+                detail,
                 event.created_at,
             ),
         )
+        # The outbox write shares the task-state transaction. A relay may
+        # publish it later without losing the lifecycle event on process crash.
+        db.execute(
+            """
+            INSERT INTO integration_outbox(
+                event_id,event_type,task_id,detail,created_at
+            ) VALUES(?,?,?,?,?)
+            """,
+            (
+                event.event_id,
+                event.event_type,
+                event.task_id,
+                detail,
+                event.created_at,
+            ),
+        )
+
+    def pending_outbox(self, limit: int = 100) -> list[dict[str, Any]]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT event_id,event_type,task_id,detail,created_at,attempts
+                FROM integration_outbox
+                WHERE published_at IS NULL
+                ORDER BY sequence
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "event_id": row["event_id"],
+                "event_type": row["event_type"],
+                "task_id": row["task_id"],
+                "detail": json.loads(row["detail"]),
+                "created_at": row["created_at"],
+                "attempts": row["attempts"],
+            }
+            for row in rows
+        ]
+
+    def record_outbox_attempt(self, event_id: str) -> None:
+        with self._connect() as db:
+            changed = db.execute(
+                """
+                UPDATE integration_outbox
+                SET attempts=attempts+1
+                WHERE event_id=? AND published_at IS NULL
+                """,
+                (event_id,),
+            ).rowcount
+            if not changed:
+                raise TaskNotFoundError(f"pending outbox event not found: {event_id}")
+
+    def mark_outbox_published(self, event_id: str) -> bool:
+        published_at = datetime.now(UTC).isoformat()
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT published_at FROM integration_outbox WHERE event_id=?",
+                (event_id,),
+            ).fetchone()
+            if row is None:
+                raise TaskNotFoundError(f"outbox event not found: {event_id}")
+            if row["published_at"] is not None:
+                return False
+            db.execute(
+                "UPDATE integration_outbox SET published_at=? WHERE event_id=?",
+                (published_at, event_id),
+            )
+        return True
 
     def submit(self, task: Task) -> Task:
         if not isinstance(task.max_attempts, int) or isinstance(task.max_attempts, bool):
