@@ -1,4 +1,6 @@
+import os
 import sqlite3
+import stat
 
 import pytest
 
@@ -114,3 +116,22 @@ def test_task_listing_uses_newest_first_for_all_filters(tmp_path):
     assert [task.task_id for task in queue.list(TaskStatus.QUEUED)] == [
         second.task_id, first.task_id
     ]
+
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission bits are unavailable")
+def test_default_state_directory_and_database_are_private(tmp_path):
+    database = tmp_path / ".openswarm" / "state.sqlite3"
+    TaskQueue(database)
+    assert stat.S_IMODE(database.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(database.stat().st_mode) == 0o600
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink semantics required")
+def test_queue_refuses_symlink_database(tmp_path):
+    target = tmp_path / "target.sqlite3"
+    target.touch()
+    link = tmp_path / "state.sqlite3"
+    link.symlink_to(target)
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        TaskQueue(link)
