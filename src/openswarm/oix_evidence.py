@@ -69,7 +69,7 @@ class OIXEvidenceIngestor:
         """Atomically publish one approved evidence record and mark it ingested."""
         try:
             from oix.envelope import verify_for_recipient
-            from oix.inbox import _validate_evidence_submit_payload
+            from oix.inbox import validate_evidence_submit_payload
         except ImportError as exc:
             raise OIXEvidenceIngestError(
                 "install Open Intelligence Exchange to use the OIX evidence adapter"
