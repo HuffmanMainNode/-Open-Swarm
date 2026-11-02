@@ -81,3 +81,48 @@ def test_cli_relay_status_and_single_pass(tmp_path, monkeypatch, capsys):
     )
     result = json.loads(capsys.readouterr().out)
     assert result == {"published": 1, "duplicates": 0, "pending": 0}
+
+
+def test_cli_oix_handoff_moves_only_approved_work(tmp_path, monkeypatch, capsys):
+    import sqlite3
+    import uuid
+
+    database = str(tmp_path / "shared.sqlite3")
+    TaskQueue(database)
+    sender = "peer-fingerprint"
+    message_id = str(uuid.uuid4())
+    work_id = str(uuid.uuid4())
+    payload = json.dumps({"prompt": "Summarize public advisories"})
+    with sqlite3.connect(database) as db:
+        db.execute(
+            """CREATE TABLE inbox_messages (
+                sender TEXT NOT NULL, message_id TEXT NOT NULL, nonce TEXT NOT NULL,
+                message_type TEXT NOT NULL, content_sha256 TEXT NOT NULL,
+                body_json TEXT NOT NULL, envelope_json TEXT NOT NULL,
+                received_at INTEGER NOT NULL, PRIMARY KEY(sender,message_id),
+                UNIQUE(sender,nonce)
+            )"""
+        )
+        db.execute(
+            """CREATE TABLE inbound_work (
+                work_id TEXT PRIMARY KEY, sender TEXT NOT NULL, message_id TEXT NOT NULL,
+                work_type TEXT NOT NULL, capability TEXT NOT NULL, payload_json TEXT NOT NULL,
+                status TEXT NOT NULL, created_at INTEGER NOT NULL, decided_at INTEGER,
+                UNIQUE(sender,message_id)
+            )"""
+        )
+        db.execute(
+            "INSERT INTO inbox_messages VALUES(?,?,?,?,?,?,?,?)",
+            (sender, message_id, str(uuid.uuid4()), "task.request", "digest", "{}", "{}", 1),
+        )
+        db.execute(
+            "INSERT INTO inbound_work VALUES(?,?,?,?,?,?,?,?,?)",
+            (work_id, sender, message_id, "task.request", "public.research", payload,
+             "approved", 1, 1),
+        )
+
+    _run_cli(monkeypatch, ["--db", database, "oix-handoff"])
+    result = json.loads(capsys.readouterr().out)
+    assert len(result) == 1
+    assert result[0]["task_status"] == TaskStatus.QUEUED.value
+    assert TaskQueue(database).get(result[0]["task_id"]).prompt == "Summarize public advisories"
