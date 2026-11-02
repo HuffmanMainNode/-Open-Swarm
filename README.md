@@ -23,7 +23,7 @@ pytest
 - Pluggable model adapter interface, deterministic mock adapter, and local Ollama HTTP adapter.
 - Policy engine for capability checks, output limits, task allow/deny rules, and human-approval gates.
 - Structured audit events stored in SQLite.
-- CLI for submitting, listing, running, and inspecting tasks.
+- CLI for submitting, approving, rejecting, listing, running, and inspecting tasks.
 - Tests and GitHub Actions CI.
 
 ## Design principles
@@ -58,7 +58,7 @@ openswarm submit --worker general --adapter ollama --model qwen2.5:3b --task "Ex
 openswarm run-once
 ```
 
-The Ollama server must be running locally. No cloud fallback is attempted.
+The Ollama server must be running locally. No cloud fallback is attempted.\n\nFor approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log.
 
 ## License
 
