@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from openswarm.models import TaskStatus
+from openswarm.models import Task, TaskStatus
 from openswarm.queue import QueueFullError, TaskQueue
 from openswarm.oix_handoff import (
     InvalidRemoteTaskError,
@@ -175,9 +175,7 @@ def test_queue_capacity_preserves_approved_inbox_item(tmp_path):
     path = tmp_path / "shared.sqlite3"
     queue = create_shared_database(path)
     queue.max_queued = 1
-    queue.submit(__import__("openswarm.models", fromlist=["Task"]).Task(
-        worker="general", prompt="occupy queue"
-    ))
+    queue.submit(Task(worker="general", prompt="occupy queue"))
     sender, message_id, work_id = add_approved_work(path)
     with pytest.raises(QueueFullError):
         OIXTaskHandoff(queue).handoff_one(sender, message_id)
