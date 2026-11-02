@@ -154,7 +154,7 @@ class OutboxRelay:
                     duplicates += 1
                 else:
                     published += 1
-            pending = len(self.queue.pending_outbox(self.batch_size))
+            pending = int(self.status()["pending"])
             return RelayResult(published, duplicates, pending)
         finally:
             self._release()
@@ -175,7 +175,7 @@ class OutboxRelay:
                 if result.published or result.duplicates:
                     logger.info("relay batch completed: %s", asdict(result))
             except RelayAlreadyRunning:
-                logger.exception("relay lease conflict; this process will stop")
+                logger.error("relay lease conflict; this process will stop")
                 raise
             except Exception as exc:  # keep service alive after transient local I/O failures
                 logger.error("relay iteration failed (%s); retrying", type(exc).__name__)
