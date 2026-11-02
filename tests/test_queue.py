@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import stat
@@ -187,7 +188,7 @@ def test_legacy_unapproved_task_migrates_to_pending_approval(tmp_path):
             "INSERT INTO tasks VALUES(?,?,?,?,?)",
             (
                 task.task_id,
-                __import__("json").dumps(payload),
+                json.dumps(payload),
                 TaskStatus.QUEUED.value,
                 task.created_at,
                 task.updated_at,
