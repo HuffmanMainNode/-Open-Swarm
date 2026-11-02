@@ -124,4 +124,4 @@ The optional bridges in Halloween OSINT and Huffman Cyber Observatory can sign l
 
 ### Continuous ingestion
 
-The checkpointed `IngestionSupervisor` runs explicit source adapters with SQLite leases, bounded batches, exponential retry backoff, idempotent event publication, and atomic checkpoint advancement. An optional CISA KEV adapter uses Huffman Cyber Observatory's fixed public feed client. See [Continuous Ingestion](docs/CONTINUOUS-INGESTION.md) and the synthetic fixture demo at `examples/cisa_kev_ingestion_demo.py`.
+The checkpointed `IngestionSupervisor` runs explicit source adapters with SQLite leases, bounded batches, exponential retry backoff, idempotent event publication, and atomic checkpoint advancement. An optional CISA KEV adapter uses Huffman Cyber Observatory's fixed public feed client. Run it with `openswarm-ingest-cisa-kev --events-db .openswarm/events.sqlite3 --interval 300`. See [Continuous Ingestion](docs/CONTINUOUS-INGESTION.md) and the synthetic fixture demo at `examples/cisa_kev_ingestion_demo.py`.
