@@ -48,7 +48,7 @@ Accepted payload object fields:
 - `capabilities`: optional list of 1 to 32 unique labels; defaults to the OIX-approved capability
 - `max_attempts`: optional integer from 1 to 10, defaults to 2
 
-The capabilities list must include the OIX-approved requested capability. The adapter does not treat a remote worker or adapter label as trusted merely because it was signed. Open-Swarm must still have the named worker and adapter locally configured.
+The capabilities list must contain exactly the single OIX-approved requested capability. Remote payloads cannot add additional privileges. The adapter does not treat a remote worker or adapter label as trusted merely because it was signed. Open-Swarm must still have the named worker and adapter locally configured.
 
 ## Security boundaries
 
