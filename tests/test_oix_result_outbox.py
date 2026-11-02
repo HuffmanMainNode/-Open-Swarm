@@ -109,3 +109,67 @@ def test_failed_or_blocked_remote_task_also_waits_for_approval(tmp_path):
             (receipt.task_id,),
         ).fetchone()
     assert row == ("blocked", "pending_approval")
+
+def test_result_outbox_failure_rolls_back_terminal_state_and_audit(tmp_path):
+    path = tmp_path / "shared.sqlite3"
+    queue, sender, message_id = _shared_queue(path)
+    receipt = OIXTaskHandoff(queue).handoff_one(sender, message_id)
+    claimed = queue.claim()
+    with sqlite3.connect(path) as db:
+        db.execute(
+            """
+            CREATE TRIGGER reject_result_outbox BEFORE INSERT ON oix_result_outbox
+            BEGIN SELECT RAISE(ABORT, 'simulated result outbox failure'); END
+            """
+        )
+        before_audit = db.execute("SELECT COUNT(*) FROM audit").fetchone()[0]
+        before_outbox = db.execute(
+            "SELECT COUNT(*) FROM integration_outbox"
+        ).fetchone()[0]
+    import pytest
+    with pytest.raises(sqlite3.IntegrityError, match="simulated result outbox failure"):
+        queue.finish(claimed, TaskStatus.SUCCEEDED, result="must remain local")
+    with sqlite3.connect(path) as db:
+        row = db.execute(
+            "SELECT status FROM tasks WHERE task_id=?", (receipt.task_id,)
+        ).fetchone()
+        assert row[0] == "running"
+        assert db.execute("SELECT COUNT(*) FROM audit").fetchone()[0] == before_audit
+        assert db.execute(
+            "SELECT COUNT(*) FROM integration_outbox"
+        ).fetchone()[0] == before_outbox
+        assert db.execute(
+            "SELECT COUNT(*) FROM oix_result_outbox"
+        ).fetchone()[0] == 0
+
+
+def test_stale_worker_cannot_stage_oix_result(tmp_path):
+    from datetime import UTC, datetime, timedelta
+    import pytest
+    from openswarm.queue import LeaseOwnershipError
+
+    path = tmp_path / "shared.sqlite3"
+    queue, sender, message_id = _shared_queue(path)
+    receipt = OIXTaskHandoff(queue).handoff_one(sender, message_id)
+    stale = queue.claim(lease_seconds=1)
+    with sqlite3.connect(path) as db:
+        expired = (datetime.now(UTC) - timedelta(seconds=10)).isoformat()
+        db.execute(
+            "UPDATE tasks SET updated_at=? WHERE task_id=?",
+            (expired, receipt.task_id),
+        )
+    current = queue.claim(lease_seconds=1)
+    with pytest.raises(LeaseOwnershipError):
+        queue.finish(stale, TaskStatus.SUCCEEDED, result="stale worker output")
+    with sqlite3.connect(path) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM oix_result_outbox"
+        ).fetchone()[0] == 0
+        assert db.execute(
+            "SELECT status FROM tasks WHERE task_id=?", (receipt.task_id,)
+        ).fetchone()[0] == "running"
+    queue.finish(current, TaskStatus.SUCCEEDED, result="current worker output")
+    with sqlite3.connect(path) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM oix_result_outbox"
+        ).fetchone()[0] == 1
