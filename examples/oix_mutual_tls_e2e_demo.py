@@ -21,7 +21,6 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
-
 from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
