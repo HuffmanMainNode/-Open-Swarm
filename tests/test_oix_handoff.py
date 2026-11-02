@@ -4,13 +4,13 @@ import sqlite3
 import pytest
 
 from openswarm.models import Task, TaskStatus
-from openswarm.queue import QueueFullError, TaskQueue
 from openswarm.oix_handoff import (
     InvalidRemoteTaskError,
     OIXHandoffError,
     OIXSchemaError,
     OIXTaskHandoff,
 )
+from openswarm.queue import QueueFullError, TaskQueue
 
 
 def create_shared_database(path):
@@ -217,3 +217,23 @@ def test_handoff_pending_only_moves_approved_task_requests(tmp_path):
     assert len(receipts) == 1
     assert receipts[0].sender == one[0]
     assert receipts[0].message_id == one[1]
+
+
+
+def test_concurrent_handoff_race_creates_exactly_one_task(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    path = tmp_path / "shared.sqlite3"
+    queue = create_shared_database(path)
+    sender, message_id, _ = add_approved_work(path)
+    handoffs = [OIXTaskHandoff(queue) for _ in range(6)]
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        receipts = list(
+            executor.map(lambda adapter: adapter.handoff_one(sender, message_id), handoffs)
+        )
+    assert len({receipt.task_id for receipt in receipts}) == 1
+    assert sum(not receipt.duplicate for receipt in receipts) == 1
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 1
+        assert db.execute("SELECT COUNT(*) FROM integration_outbox").fetchone()[0] == 1
+        assert db.execute("SELECT status FROM inbound_work").fetchone()[0] == "dispatched"
