@@ -38,9 +38,22 @@ class TaskQueue:
         self.database = str(database)
         self.max_queued = max_queued
         database_path = Path(self.database)
+        if database_path.parent.is_symlink():
+            raise ValueError("queue state directory must not be a symlink")
         database_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if os.name == "posix" and database_path.parent.name == ".openswarm":
             os.chmod(database_path.parent, 0o700)
+        if database_path.is_symlink():
+            raise ValueError("queue database must not be a symlink")
+        if os.name == "posix":
+            try:
+                descriptor = os.open(
+                    self.database, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600
+                )
+            except FileExistsError:
+                os.chmod(database_path, 0o600)
+            else:
+                os.close(descriptor)
         with self._connect() as db:
             db.executescript(
                 """
@@ -66,8 +79,6 @@ class TaskQueue:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
             if "lease_id" not in columns:
                 db.execute("ALTER TABLE tasks ADD COLUMN lease_id TEXT")
-        if os.name == "posix":
-            os.chmod(database_path, 0o600)
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database, timeout=5)
