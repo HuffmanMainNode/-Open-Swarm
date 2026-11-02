@@ -35,7 +35,7 @@ def test_relay_recovers_after_publish_succeeds_but_mark_fails(tmp_path: Path) ->
 
     class PublishThenFailBus:
         def publish(self, event):
-            receipt = bus.publish(event)
+            bus.publish(event)
             raise OSError("simulated process interruption after durable publish")
 
     with pytest.raises(OSError):
