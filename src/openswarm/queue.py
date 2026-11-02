@@ -39,7 +39,7 @@ class TaskQueue:
         self.max_queued = max_queued
         database_path = Path(self.database)
         database_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if os.name == "posix":
+        if os.name == "posix" and database_path.parent.name == ".openswarm":
             os.chmod(database_path.parent, 0o700)
         with self._connect() as db:
             db.executescript(
@@ -287,6 +287,7 @@ class TaskQueue:
                         {"reason": "lease_mismatch_or_task_not_running"},
                     ),
                 )
+                db.commit()
                 raise LeaseOwnershipError("task lease is no longer owned by this worker")
             self._event(
                 db,
