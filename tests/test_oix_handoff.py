@@ -237,3 +237,23 @@ def test_concurrent_handoff_race_creates_exactly_one_task(tmp_path):
         assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 1
         assert db.execute("SELECT COUNT(*) FROM integration_outbox").fetchone()[0] == 1
         assert db.execute("SELECT status FROM inbound_work").fetchone()[0] == "dispatched"
+
+
+
+def test_remote_task_cannot_escalate_beyond_oix_approved_capability(tmp_path):
+    path = tmp_path / "shared.sqlite3"
+    queue = create_shared_database(path)
+    sender, message_id, work_id = add_approved_work(
+        path,
+        payload={
+            "prompt": "inspect public advisories",
+            "capabilities": ["public.research", "filesystem.write"],
+        },
+    )
+    with pytest.raises(InvalidRemoteTaskError, match="only the OIX-approved"):
+        OIXTaskHandoff(queue).handoff_one(sender, message_id)
+    with sqlite3.connect(path) as db:
+        assert db.execute(
+            "SELECT status FROM inbound_work WHERE work_id=?", (work_id,)
+        ).fetchone()[0] == "approved"
+        assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
