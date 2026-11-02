@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import sys
 
-from openswarm.ingestion import SourceBatch
 from openswarm.ingest_cli import main
+from openswarm.ingestion import SourceBatch
 
 
 class FakeKevSource:
