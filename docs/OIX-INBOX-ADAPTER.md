@@ -137,3 +137,16 @@ The Phase 4 interoperability example, `examples/oix_secure_result_demo.py`, exte
 5. The peer decrypts the result and verifies the original recipient and signature. Repeated encryption calls reuse the persisted wrapper.
 
 This proves local confidentiality and integrity across the OIX/Open-Swarm boundary. It still does not open a network listener, transmit data, or claim remote delivery. The static recipient encryption key does not provide forward secrecy against later key compromise.
+
+
+## Phase 5: authenticated delivery receipt
+
+The encrypted round-trip example now continues beyond decryption:
+
+1. The requesting peer writes the recovered signed `task.result` into its own durable `SQLiteInbox`.
+2. Only after that inbox accepts the message does the peer create a signed OIX `delivery.receipt`.
+3. The receipt binds the exact logical result message ID to the SHA-256 digest of the encrypted wrapper.
+4. The sender-side `SQLiteResultPublisher` verifies the peer's trusted Ed25519 signature, route, message ID, and encrypted-wrapper digest before changing the outbox state to `delivered`.
+5. Replaying the exact same verified receipt is idempotent; a different receipt cannot overwrite the delivery record.
+
+The example is still entirely local. It simulates the two peers as independent identities and SQLite inboxes, but does not send data over a network or prove real-world remote availability.
