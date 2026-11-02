@@ -12,7 +12,7 @@ import time
 from dataclasses import asdict, dataclass
 from uuid import uuid4
 
-from openswarm.events import SQLiteEventBus, PlatformEvent
+from openswarm.events import PlatformEvent, SQLiteEventBus
 from openswarm.queue import TaskQueue
 
 logger = logging.getLogger("openswarm.relay")
