@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import stat
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -135,3 +136,13 @@ def test_queue_refuses_symlink_database(tmp_path):
     link.symlink_to(target)
     with pytest.raises(ValueError, match="must not be a symlink"):
         TaskQueue(link)
+
+
+
+def test_concurrent_claimers_cannot_claim_same_task(tmp_path):
+    path = tmp_path / "race.sqlite3"
+    TaskQueue(path).submit(Task(worker="general", prompt="single claim"))
+    queues = [TaskQueue(path), TaskQueue(path)]
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        claims = list(executor.map(lambda queue: queue.claim(), queues))
+    assert sum(claim is not None for claim in claims) == 1
