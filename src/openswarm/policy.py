@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+
 from openswarm.models import Task
+
 
 @dataclass(slots=True)
 class Policy:
@@ -8,8 +10,9 @@ class Policy:
     allowed_adapters: tuple[str, ...] = ("mock", "ollama")
     denied_prompt_markers: tuple[str, ...] = ("<|system_override|>",)
 
-    def check(self, task: Task, worker_capabilities: set[str],
-              approved: bool = False) -> tuple[bool, str]:
+    def check(
+        self, task: Task, worker_capabilities: set[str], approved: bool = False
+    ) -> tuple[bool, str]:
         if not task.prompt.strip():
             return False, "empty task prompt"
         if len(task.prompt) > self.max_prompt_chars:
