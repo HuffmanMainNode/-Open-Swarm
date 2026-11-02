@@ -93,3 +93,6 @@ MIT. See [LICENSE](LICENSE).
 For tasks handed off from OIX, terminal task completion now creates a durable `oix_result_outbox` record in the same SQLite transaction as task state and audit. Results remain `pending_approval`; Open-Swarm does not sign or transmit them. The OIX repository's `SQLiteResultPublisher` handles explicit approval, signing, and persistence of the exact `task.result` envelope for a future transport.
 
 See [OIX inbox and result staging](docs/OIX-INBOX-ADAPTER.md) and the local cross-repository demonstration in `examples/oix_result_demo.py`. The demonstration verifies a signed return envelope but does not claim remote delivery. OIX v0.1 does not encrypt payloads.
+
+
+Phase 4 interoperability adds an encrypted OIX request/result demonstration in `examples/oix_secure_result_demo.py`. It verifies the signed request after decryption, runs the local Open-Swarm mock worker, encrypts the approved signed result to the original peer's certified X25519 key, and verifies the return locally. No network transport or remote delivery is claimed.

@@ -124,3 +124,16 @@ envelope = publisher.sign_approved(task_id)
 **No transport is implemented.** The signed result remains local in the outbox. A valid signature does not encrypt the payload or prove its truth. OIX v0.1 is signed but not encrypted; never approve release of secrets, personal data, restricted investigations, private prompts, credentials, or private search queries. Operator approval is a release gate, not an automated privacy classifier.
 
 The cross-repository `examples/oix_result_demo.py` verifies the complete local path using real OIX signatures and the Open-Swarm mock adapter. It confirms the return signature and original recipient, but explicitly reports `remote_delivery=false`.
+
+
+## Encrypted request and result round trip
+
+The Phase 4 interoperability example, `examples/oix_secure_result_demo.py`, extends the local exchange with authenticated encryption:
+
+1. The requesting peer signs an OIX `task.request` and encrypts it to the receiver's Ed25519-bound X25519 certificate.
+2. The receiver decrypts the wrapper, verifies the inner signature and recipient, then passes the recovered message to the ordinary durable OIX inbox.
+3. The operator approves the request; Open-Swarm receives and executes it with the local mock adapter.
+4. The result is staged for operator approval, signed by OIX, and encrypted to the original requesting peer's certified key.
+5. The peer decrypts the result and verifies the original recipient and signature. Repeated encryption calls reuse the persisted wrapper.
+
+This proves local confidentiality and integrity across the OIX/Open-Swarm boundary. It still does not open a network listener, transmit data, or claim remote delivery. The static recipient encryption key does not provide forward secrecy against later key compromise.
