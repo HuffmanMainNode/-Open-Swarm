@@ -186,3 +186,14 @@ The demonstration:
 The example reports `physical_hosts=1`: it proves a network exchange between separate agent identities and databases over loopback, not a WAN or multi-host deployment. It uses no hosted model, paid API, central relay, or public listener.
 
 The interoperability workflow checks out OIX Phase 8 and runs this demonstration alongside the prior local, signed, and encrypted handoff demonstrations. The Open-Swarm queue and OIX receiver inbox share one local database for the atomic handoff; the requesting peer remains on its own database.
+
+
+## Phase 8: certificate-bound agent identity
+
+The mutual-TLS interoperability example now uses separate server certificates for the two OIX agents. Each server and client certificate contains exactly one URI SAN of the form `urn:oix:agent:ed25519:<sha256-fingerprint>`, matching the agent identity represented by that certificate.
+
+OIX Phase 9 checks both directions:
+- The receiver rejects a TLS client certificate whose URI SAN does not match the sender identity in the encrypted OIX envelope.
+- The sender rejects a TLS server certificate whose URI SAN does not match the expected OIX recipient.
+
+This adds an identity-consistency check between the CA-authenticated TLS peer and the Ed25519-authenticated OIX message. It does not replace OIX signature verification or trusted-peer authorization. Production CA enrollment must validate the signed agent card and proof of possession before issuing the URI SAN; the test CA in this example is temporary and local.

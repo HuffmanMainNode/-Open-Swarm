@@ -27,7 +27,7 @@ from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
 from oix.prekeys import SQLitePreKeyStore, create_prekey_bundle, encrypt_prekey_envelope
 from oix.result_channel import SQLiteResultPublisher
-from oix.transport import OIXMutualTLSServer, send_encrypted_envelope
+from oix.transport import OIXMutualTLSServer, agent_identity_uri, send_encrypted_envelope
 
 from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
@@ -35,8 +35,10 @@ from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
 
 
-def _tls_material(root: Path) -> tuple[Path, ...]:
-    """Create a short-lived test CA, server cert, and two client certificates."""
+def _tls_material(
+    root: Path, peer_agent_id: str, local_agent_id: str
+) -> tuple[Path, ...]:
+    """Create a short-lived test CA and identity-bound server/client certificates."""
     now = datetime.now(UTC)
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "OIX Loopback Test CA")])
@@ -73,10 +75,18 @@ def _tls_material(root: Path) -> tuple[Path, ...]:
     ca_path.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
     ca_ski = ca_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
 
-    def issue(name: str, usage, *, server: bool = False):
+    def issue(name: str, usage, agent_id: str, *, server: bool = False):
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
-        builder = (
+        san_names = [
+            x509.UniformResourceIdentifier(agent_identity_uri(agent_id))
+        ]
+        if server:
+            san_names.extend([
+                x509.DNSName("localhost"),
+                x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+            ])
+        cert = (
             x509.CertificateBuilder()
             .subject_name(subject)
             .issuer_name(ca_name)
@@ -90,16 +100,9 @@ def _tls_material(root: Path) -> tuple[Path, ...]:
                 critical=False,
             )
             .add_extension(x509.ExtendedKeyUsage([usage]), critical=False)
+            .add_extension(x509.SubjectAlternativeName(san_names), critical=False)
+            .sign(ca_key, hashes.SHA256())
         )
-        if server:
-            builder = builder.add_extension(
-                x509.SubjectAlternativeName([
-                    x509.DNSName("localhost"),
-                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
-                ]),
-                critical=False,
-            )
-        cert = builder.sign(ca_key, hashes.SHA256())
         cert_path = root / f"{name}.pem"
         key_path = root / f"{name}.key"
         cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
@@ -110,12 +113,29 @@ def _tls_material(root: Path) -> tuple[Path, ...]:
         ))
         return cert_path, key_path
 
-    server_cert, server_key = issue(
-        "oix-loopback-server", ExtendedKeyUsageOID.SERVER_AUTH, server=True
+    local_server_cert, local_server_key = issue(
+        "oix-local-server", ExtendedKeyUsageOID.SERVER_AUTH, local_agent_id, server=True
     )
-    peer_cert, peer_key = issue("oix-peer-client", ExtendedKeyUsageOID.CLIENT_AUTH)
-    local_cert, local_key = issue("oix-local-client", ExtendedKeyUsageOID.CLIENT_AUTH)
-    return ca_path, server_cert, server_key, peer_cert, peer_key, local_cert, local_key
+    peer_server_cert, peer_server_key = issue(
+        "oix-peer-server", ExtendedKeyUsageOID.SERVER_AUTH, peer_agent_id, server=True
+    )
+    peer_client_cert, peer_client_key = issue(
+        "oix-peer-client", ExtendedKeyUsageOID.CLIENT_AUTH, peer_agent_id
+    )
+    local_client_cert, local_client_key = issue(
+        "oix-local-client", ExtendedKeyUsageOID.CLIENT_AUTH, local_agent_id
+    )
+    return (
+        ca_path,
+        local_server_cert,
+        local_server_key,
+        peer_server_cert,
+        peer_server_key,
+        peer_client_cert,
+        peer_client_key,
+        local_client_cert,
+        local_client_key,
+    )
 
 
 def _server_tls(ca: Path, cert: Path, key: Path) -> ssl.SSLContext:
@@ -154,14 +174,26 @@ async def _exchange(root: Path) -> dict[str, object]:
     local_bundle = create_prekey_bundle(local_prekeys, local_sign, count=4)
     peer_bundle = create_prekey_bundle(peer_prekeys, peer_sign, count=4)
 
-    ca, server_cert, server_key, peer_cert, peer_key, local_cert, local_key = _tls_material(root)
+    (
+        ca,
+        local_server_cert,
+        local_server_key,
+        peer_server_cert,
+        peer_server_key,
+        peer_cert,
+        peer_key,
+        local_cert,
+        local_key,
+    ) = _tls_material(root, peer_id, local_id)
     local_server = OIXMutualTLSServer(local_inbox, local_prekeys, local_sign)
     peer_server = OIXMutualTLSServer(peer_inbox, peer_prekeys, peer_sign)
     local_host, local_port = await local_server.start(
-        host="127.0.0.1", port=0, ssl_context=_server_tls(ca, server_cert, server_key)
+        host="127.0.0.1", port=0,
+        ssl_context=_server_tls(ca, local_server_cert, local_server_key)
     )
     peer_host, peer_port = await peer_server.start(
-        host="127.0.0.1", port=0, ssl_context=_server_tls(ca, server_cert, server_key)
+        host="127.0.0.1", port=0,
+        ssl_context=_server_tls(ca, peer_server_cert, peer_server_key)
     )
     peer_client = _client_tls(ca, peer_cert, peer_key)
     local_client = _client_tls(ca, local_cert, local_key)
