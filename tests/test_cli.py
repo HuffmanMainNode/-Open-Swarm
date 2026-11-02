@@ -1,3 +1,4 @@
+import json
 import sys
 
 from openswarm.cli import main
@@ -46,3 +47,12 @@ def test_cli_reject_command(tmp_path, monkeypatch, capsys):
     task_id = capsys.readouterr().out.strip()
     _run_cli(monkeypatch, ["--db", database, "reject", task_id])
     assert TaskQueue(database).get(task_id).status == TaskStatus.REJECTED
+
+
+
+def test_cli_demo_completes_with_succeeded_mock_task(tmp_path, monkeypatch, capsys):
+    database = str(tmp_path / "demo.sqlite3")
+    _run_cli(monkeypatch, ["--db", database, "demo"])
+    result = json.loads(capsys.readouterr().out)
+    assert result["result"]["status"] == TaskStatus.SUCCEEDED
+    assert "[mock response]" in result["result"]["result"]
