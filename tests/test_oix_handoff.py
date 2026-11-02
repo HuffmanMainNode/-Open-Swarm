@@ -191,7 +191,7 @@ def test_remote_task_payload_bounds_and_capability_binding(tmp_path):
     sender, message_id, _ = add_approved_work(
         path, payload={"prompt": "inspect", "capabilities": ["filesystem.write"]}
     )
-    with pytest.raises(InvalidRemoteTaskError, match="include the OIX-approved"):
+    with pytest.raises(InvalidRemoteTaskError, match="only the OIX-approved"):
         OIXTaskHandoff(queue).handoff_one(sender, message_id)
 
     sender2, message_id2, _ = add_approved_work(
