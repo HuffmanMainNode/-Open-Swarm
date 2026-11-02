@@ -158,9 +158,9 @@ class OIXTaskHandoff:
             or len(set(capabilities)) != len(capabilities)
         ):
             raise InvalidRemoteTaskError("capabilities must be 1 to 32 unique labels")
-        if row["capability"] not in capabilities:
+        if capabilities != [row["capability"]]:
             raise InvalidRemoteTaskError(
-                "task capabilities must include the OIX-approved requested capability"
+                "task capabilities must contain only the OIX-approved requested capability"
             )
 
         max_attempts = payload.get("max_attempts", 2)
