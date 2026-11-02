@@ -79,6 +79,32 @@ class TaskQueue:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(tasks)")}
             if "lease_id" not in columns:
                 db.execute("ALTER TABLE tasks ADD COLUMN lease_id TEXT")
+            queued_rows = db.execute(
+                "SELECT task_id,payload FROM tasks WHERE status=?",
+                (TaskStatus.QUEUED.value,),
+            ).fetchall()
+            for row in queued_rows:
+                task = Task.from_dict(json.loads(row["payload"]))
+                if task.requires_approval and not task.approved:
+                    task.status = TaskStatus.PENDING_APPROVAL
+                    task.updated_at = datetime.now(UTC).isoformat()
+                    db.execute(
+                        "UPDATE tasks SET payload=?,status=?,updated_at=? WHERE task_id=?",
+                        (
+                            json.dumps(task.to_dict()),
+                            task.status.value,
+                            task.updated_at,
+                            task.task_id,
+                        ),
+                    )
+                    self._event(
+                        db,
+                        AuditEvent(
+                            "task.migrated_pending_approval",
+                            task.task_id,
+                            {"reason": "legacy_unapproved_task"},
+                        ),
+                    )
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database, timeout=5)
