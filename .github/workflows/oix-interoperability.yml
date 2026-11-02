@@ -12,6 +12,7 @@ on:
       - integration/phase-8-oix-agent-bound-mtls
       - integration/phase-9-oix-persistent-streams
       - integration/phase-10-oix-evidence-event-ingestion
+      - integration/phase-11-osint-evidence-sources
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
@@ -23,6 +24,7 @@ on:
       - integration/phase-7-oix-mutual-tls-e2e
       - integration/phase-8-oix-agent-bound-mtls
       - integration/phase-9-oix-persistent-streams
+      - integration/phase-10-oix-evidence-event-ingestion
   workflow_dispatch:
 
 permissions:
@@ -40,14 +42,28 @@ jobs:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
           ref: integration/phase-11-evidence-submit-contract
           path: Open-Intelligence-Exchange
+      - name: Check out Halloween OSINT evidence bridge
+        uses: actions/checkout@v4
+        with:
+          repository: HuffmanMainNode/Halloween-OSINT-2026
+          ref: integration/oix-evidence-bridge
+          path: Halloween-OSINT-2026
+      - name: Check out Huffman Cyber Observatory evidence bridge
+        uses: actions/checkout@v4
+        with:
+          repository: HuffmanMainNode/Huffman-Cyber-Observatory
+          ref: integration/oix-evidence-bridge
+          path: Huffman-Cyber-Observatory
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install OIX and Open-Swarm
+      - name: Install all four ecosystem repositories
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ./Open-Intelligence-Exchange
+          python -m pip install -e ./Halloween-OSINT-2026
+          python -m pip install -e ./Huffman-Cyber-Observatory
           python -m pip install -e ".[dev]"
       - name: Run OIX evidence ingestion regression tests
         run: pytest tests/test_oix_evidence.py
@@ -59,3 +75,5 @@ jobs:
         run: python examples/oix_secure_result_demo.py
       - name: Run mutual-TLS cross-agent request and result exchange
         run: python examples/oix_mutual_tls_e2e_demo.py
+      - name: Run four-repository OSINT evidence ecosystem exchange
+        run: python examples/osint_ecosystem_e2e_demo.py
