@@ -9,6 +9,7 @@ encrypted result return, and authenticated delivery receipts.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import sqlite3
 import ssl
@@ -35,7 +36,7 @@ from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
 
 
-def _tls_material(root: Path) -> tuple[Path, Path, Path, Path, Path]:
+def _tls_material(root: Path) -> tuple[Path, ...]:
     """Create a short-lived test CA, server cert, and two client certificates."""
     now = datetime.now(UTC)
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -73,7 +74,7 @@ def _tls_material(root: Path) -> tuple[Path, Path, Path, Path, Path]:
     ca_path.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
     ca_ski = ca_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
 
-    def issue(name: str, usage: x509.ObjectIdentifier, *, server: bool = False):
+    def issue(name: str, usage, *, server: bool = False):
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
         builder = (
@@ -95,7 +96,7 @@ def _tls_material(root: Path) -> tuple[Path, Path, Path, Path, Path]:
             builder = builder.add_extension(
                 x509.SubjectAlternativeName([
                     x509.DNSName("localhost"),
-                    x509.IPAddress(__import__("ipaddress").ip_address("127.0.0.1")),
+                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
                 ]),
                 critical=False,
             )
