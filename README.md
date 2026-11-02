@@ -19,18 +19,18 @@ pytest
 ## Included capabilities
 
 - SQLite task queue with durable state, leases, retries, and bounded queue capacity.
-- Worker registry with explicit capabilities and maximum concurrency.
+- Worker registry with declared capability labels; the current runtime executes one task per run-once call.
 - Pluggable model adapter interface, deterministic mock adapter, and local Ollama HTTP adapter.
 - Policy engine for capability checks, output limits, task allow/deny rules, and human-approval gates.
 - Structured audit events stored in SQLite.
-- CLI for submitting, listing, running, and inspecting tasks.
+- CLI for submitting, approving, rejecting, listing, running, and inspecting tasks.
 - Tests and GitHub Actions CI.
 
 ## Design principles
 
 1. **Local-first:** no hosted inference provider is required by the core.
-2. **Least privilege:** workers receive only their declared capabilities.
-3. **Bounded execution:** queue size, worker count, task duration, retries, and output size are configurable.
+2. **Policy checks:** requested capability labels are compared with worker declarations; adapters do not enforce OS-level grants.
+3. **Bounded execution:** queue capacity, lease duration, retry count, prompt size, and output size have explicit limits.
 4. **Human control:** approval-required tasks are not run automatically.
 5. **Observable:** task transitions and policy decisions are auditable.
 6. **Replaceable:** model adapters can be swapped without changing orchestration.
@@ -59,6 +59,8 @@ openswarm run-once
 ```
 
 The Ollama server must be running locally. No cloud fallback is attempted.
+
+For approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log.
 
 ## License
 

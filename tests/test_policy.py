@@ -1,6 +1,7 @@
 from openswarm.models import Task
 from openswarm.policy import Policy
 
+
 def test_capability_gate_fails_closed():
     ok, reason = Policy().check(Task(worker="x", prompt="do",
                                      capabilities=["network"]), set())
