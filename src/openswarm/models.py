@@ -1,16 +1,21 @@
 from __future__ import annotations
+
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
+
 class TaskStatus(StrEnum):
+    PENDING_APPROVAL = "pending_approval"
     QUEUED = "queued"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     BLOCKED = "blocked"
+    REJECTED = "rejected"
+
 
 @dataclass(slots=True)
 class Task:
@@ -20,10 +25,12 @@ class Task:
     model: str | None = None
     capabilities: list[str] = field(default_factory=list)
     requires_approval: bool = False
+    approved: bool = False
     max_attempts: int = 2
     task_id: str = field(default_factory=lambda: str(uuid4()))
     status: TaskStatus = TaskStatus.QUEUED
     attempts: int = 0
+    lease_id: str | None = None
     result: str | None = None
     error: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -38,7 +45,10 @@ class Task:
     def from_dict(cls, value: dict[str, Any]) -> Task:
         data = dict(value)
         data["status"] = TaskStatus(data.get("status", "queued"))
+        data.setdefault("approved", False)
+        data.setdefault("lease_id", None)
         return cls(**data)
+
 
 @dataclass(slots=True)
 class AuditEvent:
