@@ -197,3 +197,12 @@ OIX Phase 9 checks both directions:
 - The sender rejects a TLS server certificate whose URI SAN does not match the expected OIX recipient.
 
 This adds an identity-consistency check between the CA-authenticated TLS peer and the Ed25519-authenticated OIX message. It does not replace OIX signature verification or trusted-peer authorization. Production CA enrollment must validate the signed agent card and proof of possession before issuing the URI SAN; the test CA in this example is temporary and local.
+
+
+## Phase 9: persistent multi-message streams
+
+The mutual-TLS interoperability example now sends two distinct encrypted task requests over one authenticated peer session, and sends the two resulting encrypted task results over a second session in the reverse direction.
+
+Each stream item uses a distinct signed one-time-prekey bundle. The sender waits for the corresponding signed, digest-bound receipt before transmitting the next item. This exercises bounded persistent sessions, sequential backpressure, durable inbox acceptance, and receipt verification across the Open-Swarm handoff.
+
+The example reports one connection for the request batch and one connection for the result batch. It remains a same-host loopback test with two independent agent databases and does not claim a WAN deployment or a pub/sub broker.
