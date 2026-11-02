@@ -304,6 +304,7 @@ class SQLiteEventBus:
 
     def publish(self, event: PlatformEvent) -> EventReceipt:
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             return self.publish_in_transaction(db, event)
 
     def read(self, consumer_id: str, *, limit: int = 100) -> list[EventRecord]:
