@@ -58,7 +58,9 @@ openswarm submit --worker general --adapter ollama --model qwen2.5:3b --task "Ex
 openswarm run-once
 ```
 
-The Ollama server must be running locally. No cloud fallback is attempted.\n\nFor approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log.
+The Ollama server must be running locally. No cloud fallback is attempted.
+
+For approval-required tasks, submission places the task in `pending_approval`; it is not eligible for execution until an operator runs `openswarm approve <task-id>`. Use `openswarm reject <task-id>` to reject it. Approval and rejection are recorded in the audit log.
 
 ## License
 
