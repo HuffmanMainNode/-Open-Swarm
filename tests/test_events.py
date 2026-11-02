@@ -50,8 +50,9 @@ def test_independent_consumers_receive_same_event(tmp_path: Path) -> None:
 
 def test_publish_is_idempotent_for_identical_event(tmp_path: Path) -> None:
     bus = SQLiteEventBus(tmp_path / "events.sqlite3")
-    first = bus.publish(make_event())
-    second = bus.publish(make_event())
+    event = make_event()
+    first = bus.publish(event)
+    second = bus.publish(event)
     assert first.sequence == second.sequence
     assert second.duplicate is True
     assert bus.count() == 1

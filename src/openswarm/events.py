@@ -72,22 +72,40 @@ def _validate_event(event: PlatformEvent) -> dict[str, str]:
         UUID(event.event_id)
     except (ValueError, TypeError, AttributeError) as exc:
         raise EventValidationError("event_id must be a UUID") from exc
-    if not isinstance(event.event_type, str) or not EVENT_TYPE.fullmatch(event.event_type):
+    if (
+        not isinstance(event.event_type, str)
+        or len(event.event_type) > 128
+        or not EVENT_TYPE.fullmatch(event.event_type)
+    ):
         raise EventValidationError("event_type must be a namespaced lowercase identifier")
     if not isinstance(event.source, str) or not event.source.strip() or len(event.source) > 128:
         raise EventValidationError("source must contain 1 to 128 characters")
-    if not isinstance(event.schema_version, str) or not re.fullmatch(r"[0-9]+\\.[0-9]+", event.schema_version):
+    if (
+        not isinstance(event.schema_version, str)
+        or not re.fullmatch(r"[0-9]+\.[0-9]+", event.schema_version)
+    ):
         raise EventValidationError("schema_version must use MAJOR.MINOR notation")
-    if event.classification not in CLASSIFICATIONS:
+    if (
+        not isinstance(event.classification, str)
+        or event.classification not in CLASSIFICATIONS
+    ):
         raise EventValidationError("classification must be public, internal, or restricted")
     if not isinstance(event.payload, dict):
         raise EventValidationError("payload must be a JSON object")
     if not isinstance(event.evidence_refs, list) or len(event.evidence_refs) > MAX_EVIDENCE_REFS:
         raise EventValidationError("evidence_refs must be a list of at most 100 references")
-    if any(not isinstance(ref, str) or not ref.strip() or len(ref) > 512 for ref in event.evidence_refs):
+    if any(
+        not isinstance(ref, str) or not ref.strip() or len(ref) > 512
+        for ref in event.evidence_refs
+    ):
         raise EventValidationError("each evidence reference must contain 1 to 512 characters")
-    for label, value in (("correlation_id", event.correlation_id), ("causation_id", event.causation_id)):
-        if value is not None and (not isinstance(value, str) or not value.strip() or len(value) > 128):
+    for label, value in (
+        ("correlation_id", event.correlation_id),
+        ("causation_id", event.causation_id),
+    ):
+        if value is not None and (
+            not isinstance(value, str) or not value.strip() or len(value) > 128
+        ):
             raise EventValidationError(f"{label} must contain 1 to 128 characters when supplied")
     if not isinstance(event.occurred_at, str):
         raise EventValidationError("occurred_at must be an RFC 3339 timestamp")
@@ -96,16 +114,38 @@ def _validate_event(event: PlatformEvent) -> dict[str, str]:
         if timestamp.tzinfo is None:
             raise ValueError("timezone required")
     except ValueError as exc:
-        raise EventValidationError("occurred_at must be an RFC 3339 timestamp with timezone") from exc
+        raise EventValidationError(
+            "occurred_at must be an RFC 3339 timestamp with timezone"
+        ) from exc
     try:
-        payload_json = json.dumps(event.payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        evidence_json = json.dumps(event.evidence_refs, ensure_ascii=False, separators=(",", ":"))
+        payload_json = json.dumps(
+            event.payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        evidence_json = json.dumps(
+            event.evidence_refs, ensure_ascii=False, separators=(",", ":")
+        )
+        encoded = json.dumps(
+            event.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
     except (TypeError, ValueError, RecursionError) as exc:
-        raise EventValidationError("payload and evidence references must be finite JSON data") from exc
-    encoded = json.dumps(event.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        raise EventValidationError(
+            "payload and evidence references must be finite JSON data"
+        ) from exc
     if len(encoded) > MAX_EVENT_BYTES:
         raise EventValidationError(f"event exceeds {MAX_EVENT_BYTES} bytes")
-    return {"payload": payload_json, "evidence_refs": evidence_json, "canonical": encoded.decode("utf-8")}
+    return {
+        "payload": payload_json,
+        "evidence_refs": evidence_json,
+        "canonical": encoded.decode("utf-8"),
+    }
 
 
 class SQLiteEventBus:
@@ -116,7 +156,12 @@ class SQLiteEventBus:
     read the same event stream with independent offsets.
     """
 
-    def __init__(self, database: str | Path = ".openswarm/events.sqlite3", *, busy_timeout_ms: int = 5000) -> None:
+    def __init__(
+        self,
+        database: str | Path = ".openswarm/events.sqlite3",
+        *,
+        busy_timeout_ms: int = 5000,
+    ) -> None:
         if not 1 <= busy_timeout_ms <= 60_000:
             raise ValueError("busy_timeout_ms must be between 1 and 60000")
         self.database = str(database)
@@ -129,7 +174,9 @@ class SQLiteEventBus:
             raise ValueError("event journal database must not be a symlink")
         if os.name == "posix":
             try:
-                descriptor = os.open(self.database, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+                descriptor = os.open(
+                    self.database, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600
+                )
             except FileExistsError:
                 os.chmod(path, 0o600)
             else:
@@ -182,9 +229,17 @@ class SQLiteEventBus:
                     ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
-                        event.event_id, event.event_type, event.schema_version, event.occurred_at,
-                        event.source, event.classification, event.correlation_id, event.causation_id,
-                        encoded["evidence_refs"], encoded["payload"], encoded["canonical"],
+                        event.event_id,
+                        event.event_type,
+                        event.schema_version,
+                        event.occurred_at,
+                        event.source,
+                        event.classification,
+                        event.correlation_id,
+                        event.causation_id,
+                        encoded["evidence_refs"],
+                        encoded["payload"],
+                        encoded["canonical"],
                     ),
                 )
                 return EventReceipt(event.event_id, int(cursor.lastrowid), False)
@@ -196,7 +251,9 @@ class SQLiteEventBus:
                 if existing is None:
                     raise
                 if existing["canonical_json"] != encoded["canonical"]:
-                    raise EventConflictError("event_id already exists with different content") from exc
+                    raise EventConflictError(
+                        "event_id already exists with different content"
+                    ) from exc
                 return EventReceipt(event.event_id, int(existing["sequence"]), True)
 
     def read(self, consumer_id: str, *, limit: int = 100) -> list[EventRecord]:
@@ -207,11 +264,16 @@ class SQLiteEventBus:
         now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         with self._connect() as db:
             db.execute(
-                "INSERT OR IGNORE INTO event_consumers(consumer_id,last_sequence,delivered_sequence,created_at,updated_at) VALUES(?,0,0,?,?)",
+                """
+                INSERT OR IGNORE INTO event_consumers(
+                    consumer_id,last_sequence,delivered_sequence,created_at,updated_at
+                ) VALUES(?,0,0,?,?)
+                """,
                 (consumer_id, now, now),
             )
             consumer = db.execute(
-                "SELECT last_sequence FROM event_consumers WHERE consumer_id=?", (consumer_id,)
+                "SELECT last_sequence FROM event_consumers WHERE consumer_id=?",
+                (consumer_id,),
             ).fetchone()
             rows = db.execute(
                 "SELECT * FROM platform_events WHERE sequence>? ORDER BY sequence LIMIT ?",
@@ -219,7 +281,10 @@ class SQLiteEventBus:
             ).fetchall()
             if rows:
                 db.execute(
-                    "UPDATE event_consumers SET delivered_sequence=?,updated_at=? WHERE consumer_id=?",
+                    """
+                    UPDATE event_consumers SET delivered_sequence=?,updated_at=?
+                    WHERE consumer_id=?
+                    """,
                     (int(rows[-1]["sequence"]), now, consumer_id),
                 )
         return [self._record(row) for row in rows]
@@ -246,13 +311,18 @@ class SQLiteEventBus:
                 raise ConsumerError("event sequence does not exist")
             db.execute(
                 "UPDATE event_consumers SET last_sequence=?,updated_at=? WHERE consumer_id=?",
-                (sequence, datetime.now(UTC).isoformat().replace("+00:00", "Z"), consumer_id),
+                (
+                    sequence,
+                    datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                    consumer_id,
+                ),
             )
 
     def consumer_offset(self, consumer_id: str) -> int:
         with self._connect() as db:
             row = db.execute(
-                "SELECT last_sequence FROM event_consumers WHERE consumer_id=?", (consumer_id,)
+                "SELECT last_sequence FROM event_consumers WHERE consumer_id=?",
+                (consumer_id,),
             ).fetchone()
         return int(row["last_sequence"]) if row else 0
 
