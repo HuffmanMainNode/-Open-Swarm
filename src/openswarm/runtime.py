@@ -36,7 +36,7 @@ class SwarmRuntime:
         worker = self.workers.get(task.worker)
         if worker is None:
             return self.queue.finish(task, TaskStatus.BLOCKED, error=f"unknown worker: {task.worker}")
-        approved = self.approval(task) if task.requires_approval else False
+        approved = task.approved or (self.approval(task) if task.requires_approval else False)
         allowed, reason = self.policy.check(task, worker.capabilities, approved)
         if not allowed:
             return self.queue.finish(task, TaskStatus.BLOCKED, error=reason)
