@@ -150,3 +150,17 @@ The encrypted round-trip example now continues beyond decryption:
 5. Replaying the exact same verified receipt is idempotent; a different receipt cannot overwrite the delivery record.
 
 The example is still entirely local. It simulates the two peers as independent identities and SQLite inboxes, but does not send data over a network or prove real-world remote availability.
+
+
+## Phase 6: one-time-prekey exchange
+
+The cross-repository secure round trip now uses signed one-time X25519 prekey bundles in both directions:
+
+- The requesting peer encrypts its signed `task.request` to a prekey published by the local Open-Swarm receiver.
+- The receiver authenticates, decrypts, verifies, and atomically consumes that prekey before the ordinary OIX inbox and approval gate accept the request.
+- Open-Swarm executes the approved task locally.
+- The result publisher persists the approved signed `task.result` encrypted to a prekey from the original peer's signed bundle.
+- The peer decrypts and consumes that prekey, stores the signed result in its own inbox, then returns a digest-bound signed receipt.
+- The sender verifies the receipt before finalizing delivery.
+
+The example also checks that a retry reuses the exact persisted encrypted wrapper. Prekey private material is local to each peer and never included in the public bundle. This remains a local demonstration; it does not provide bundle discovery, remote reservation, replenishment automation, or network transport. Forward-secrecy benefits depend on secure deletion and the absence of recoverable key copies in backups or storage snapshots.
