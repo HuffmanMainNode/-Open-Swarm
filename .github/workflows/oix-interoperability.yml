@@ -10,6 +10,7 @@ on:
       - integration/phase-6-oix-one-time-prekey-exchange
       - integration/phase-7-oix-mutual-tls-e2e
       - integration/phase-8-oix-agent-bound-mtls
+      - integration/phase-9-oix-persistent-streams
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
@@ -19,6 +20,7 @@ on:
       - integration/phase-5-oix-authenticated-receipts
       - integration/phase-6-oix-one-time-prekey-exchange
       - integration/phase-7-oix-mutual-tls-e2e
+      - integration/phase-8-oix-agent-bound-mtls
   workflow_dispatch:
 
 permissions:
@@ -30,11 +32,11 @@ jobs:
     steps:
       - name: Check out Open-Swarm
         uses: actions/checkout@v4
-      - name: Check out OIX Phase 9
+      - name: Check out OIX Phase 10
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: integration/phase-9-agent-bound-mtls
+          ref: integration/phase-10-persistent-agent-streams
           path: Open-Intelligence-Exchange
       - name: Set up Python
         uses: actions/setup-python@v5
