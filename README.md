@@ -96,3 +96,6 @@ See [OIX inbox and result staging](docs/OIX-INBOX-ADAPTER.md) and the local cros
 
 
 Phase 4 interoperability adds an encrypted OIX request/result demonstration in `examples/oix_secure_result_demo.py`. It verifies the signed request after decryption, runs the local Open-Swarm mock worker, encrypts the approved signed result to the original peer's certified X25519 key, and verifies the return locally. No network transport or remote delivery is claimed.
+
+
+Phase 5 interoperability extends the encrypted round trip with a durable receiver inbox and a signed OIX `delivery.receipt` bound to the exact encrypted result wrapper. The sender records delivery only after verifying the peer signature, original message ID, recipient route, and ciphertext digest. The demonstration remains local-only and does not claim network delivery.

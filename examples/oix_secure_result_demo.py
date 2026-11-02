@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 from pathlib import Path
 
 from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
+from oix.receipts import create_delivery_receipt, message_digest
 from oix.result_channel import SQLiteResultPublisher
 from oix.secure_transport import (
     decrypt_envelope,
@@ -87,6 +89,33 @@ def main() -> None:
         if opened_result != signed_result or retry != sealed_result:
             raise RuntimeError("result verification or retry persistence failed")
 
+        # The original requester persists the decrypted result before issuing
+        # a signed receipt bound to the exact encrypted wrapper.
+        peer_inbox = SQLiteInbox(root / "peer-inbox.sqlite3", peer_id)
+        peer_inbox.trust_peer(local_card)
+        accepted = peer_inbox.receive(opened_result)
+        if accepted.message_id != opened_result["body"]["message_id"]:
+            raise RuntimeError("peer inbox did not accept the expected result")
+        delivery_receipt = create_delivery_receipt(
+            peer_sign,
+            local_id,
+            opened_result["body"]["message_id"],
+            message_digest(sealed_result),
+            accepted_at=int(time.time()),
+        )
+        delivered = publisher.mark_delivered(
+            task.task_id,
+            delivery_receipt,
+            peer_sign.public_key().public_bytes_raw(),
+        )
+        duplicate_receipt = publisher.mark_delivered(
+            task.task_id,
+            delivery_receipt,
+            peer_sign.public_key().public_bytes_raw(),
+        )
+        if not delivered or duplicate_receipt:
+            raise RuntimeError("signed receipt lifecycle was not idempotent")
+
         print(json.dumps({
             "request_id": receipt.message_id,
             "task_id": handoff.task_id,
@@ -95,6 +124,9 @@ def main() -> None:
             "result_message_id": opened_result["body"]["message_id"],
             "recipient_is_original_peer": opened_result["body"]["recipient"] == peer_id,
             "retry_reuses_same_wrapper": True,
+            "peer_inbox_durable_acceptance": True,
+            "signed_receipt_verified": True,
+            "delivery_state": "delivered",
             "network_transport": False,
             "remote_delivery": False,
         }, indent=2))

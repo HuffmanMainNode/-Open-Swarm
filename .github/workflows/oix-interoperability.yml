@@ -6,11 +6,13 @@ on:
       - integration/phase-2-oix-atomic-handoff
       - integration/phase-3-oix-result-outbox
       - integration/phase-4-oix-secure-result-integration
+      - integration/phase-5-oix-authenticated-receipts
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
       - integration/phase-2-oix-atomic-handoff
       - integration/phase-3-oix-result-outbox
+      - integration/phase-4-oix-secure-result-integration
   workflow_dispatch:
 
 permissions:
@@ -22,11 +24,11 @@ jobs:
     steps:
       - name: Check out Open-Swarm
         uses: actions/checkout@v4
-      - name: Check out OIX Phase 4
+      - name: Check out OIX Phase 5
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: integration/phase-4-confidential-envelope
+          ref: integration/phase-5-peer-lifecycle-receipts
           path: Open-Intelligence-Exchange
       - name: Set up Python
         uses: actions/setup-python@v5
