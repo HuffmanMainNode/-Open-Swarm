@@ -115,3 +115,8 @@ With OIX Phase 8 installed, run `python examples/oix_mutual_tls_e2e_demo.py` to 
 ### OIX evidence ingestion
 
 With OIX Phase 11 installed, `OIXEvidenceIngestor` can transfer an operator-approved `evidence.submit` record into the local Open-Swarm event journal. The OIX inbox and event journal must share one SQLite file so the event append and inbox status transition are atomic. See [OIX Inbox Adapter](docs/OIX-INBOX-ADAPTER.md) for security boundaries and the persistent mutual-TLS evidence-stream demonstration.
+
+
+### Four-repository OSINT evidence exchange
+
+The optional bridges in Halloween OSINT and Huffman Cyber Observatory can sign local artifacts as OIX evidence records. The Open-Swarm interoperability workflow validates both sources through one persistent mutual-TLS exchange, applies separate operator approvals, and atomically ingests evidence into its event journal. See [OIX Inbox Adapter](docs/OIX-INBOX-ADAPTER.md) and run `python examples/osint_ecosystem_e2e_demo.py` in the cross-repository environment.
