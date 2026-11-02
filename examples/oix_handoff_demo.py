@@ -18,6 +18,7 @@ from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
+
 from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
