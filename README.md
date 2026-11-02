@@ -40,6 +40,8 @@ pytest
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security model](docs/SECURITY.md)
 - [OIX integration](docs/OIX.md)
+- [Local event journal contract](docs/EVENT-BUS.md)
+- [OIX-to-platform event mapping](docs/OIX-MAPPING.md)
 - [Development](CONTRIBUTING.md)
 
 ## Example

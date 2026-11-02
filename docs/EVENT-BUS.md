@@ -20,7 +20,7 @@ Every event contains:
 - `evidence_refs`: optional content-addressed or source references.
 - `correlation_id` and `causation_id`: optional incident and parent-event linkage.
 
-Events are append-only. Reusing an event ID with identical content is idempotent; reusing it with different content is rejected.
+Events are append-only. Reusing an event ID with identical content is idempotent; reusing it with different content is rejected. The implementation accepts only deterministic JSON values: null, booleans, strings, integers, arrays, and objects with string keys. Floating-point values are rejected; represent fractional measurements as decimal strings or scaled integers. Payload nesting is limited to 32 levels, arrays and objects to 10,000 members each, and the complete event to 64 KiB.
 
 ## Delivery semantics
 

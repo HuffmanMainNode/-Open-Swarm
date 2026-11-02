@@ -24,3 +24,10 @@ Open-Swarm is a small orchestration kernel, not a monolithic autonomous agent.
 ## Execution model
 
 This initial release is single-process and executes one task per run-once call. It does not claim distributed scheduling, exactly-once execution, or cluster coordination. SQLite lease recovery is intended for a single host.
+
+
+## Integration foundation
+
+The openswarm.events module provides a versioned local event envelope and a SQLite event journal with independent consumer offsets. It is a durable single-host journal, not a distributed broker. The event contract is documented in [EVENT-BUS.md](EVENT-BUS.md).
+
+OIX-to-event normalization is specified separately in [OIX-MAPPING.md](OIX-MAPPING.md). The mapping is a design contract only; a production bridge, transport, and cross-repository end-to-end tests are not yet included. Task lifecycle events are not yet transactionally coupled to the task queue through an outbox.
