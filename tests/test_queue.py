@@ -203,3 +203,12 @@ def test_legacy_unapproved_task_migrates_to_pending_approval(tmp_path):
         event["event_type"] == "task.migrated_pending_approval"
         for event in queue.audit()
     )
+
+
+
+def test_submit_rejects_invalid_max_attempts(tmp_path):
+    queue = TaskQueue(tmp_path / "state.sqlite3")
+    with pytest.raises(ValueError, match="must be positive"):
+        queue.submit(Task(worker="general", prompt="invalid", max_attempts=0))
+    with pytest.raises(TypeError, match="must be an integer"):
+        queue.submit(Task(worker="general", prompt="invalid", max_attempts=True))
