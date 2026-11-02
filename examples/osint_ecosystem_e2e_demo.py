@@ -23,6 +23,7 @@ from oix.policy import CapabilityPolicy
 from oix.prekeys import SQLitePreKeyStore, create_prekey_bundle, encrypt_prekey_envelope
 from oix.result_channel import SQLiteResultPublisher
 from oix.transport import OIXMutualTLSServer, send_encrypted_stream
+from oix_mutual_tls_e2e_demo import _client_tls, _server_tls, _tls_material
 
 from openswarm.events import SQLiteEventBus
 from openswarm.models import TaskStatus
@@ -30,8 +31,6 @@ from openswarm.oix_evidence import OIXEvidenceIngestor
 from openswarm.oix_handoff import OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
-
-from oix_mutual_tls_e2e_demo import _client_tls, _server_tls, _tls_material
 
 
 async def _run(root: Path) -> dict[str, object]:
@@ -274,7 +273,8 @@ async def _run(root: Path) -> dict[str, object]:
 
         with sqlite3.connect(local_db) as db:
             event_rows = db.execute(
-                "SELECT event_type,classification,payload_json FROM platform_events ORDER BY sequence"
+                """SELECT event_type,classification,payload_json
+                   FROM platform_events ORDER BY sequence"""
             ).fetchall()
         with sqlite3.connect(peer_db) as db:
             result_count = db.execute(
