@@ -23,6 +23,7 @@ pytest
 - Pluggable model adapter interface, deterministic mock adapter, and local Ollama HTTP adapter.
 - Policy engine for capability checks, output limits, task allow/deny rules, and human-approval gates.
 - Structured audit events stored in SQLite.
+- Transactional task-lifecycle outbox and a local SQLite event journal with at-least-once relay semantics.
 - CLI for submitting, approving, rejecting, listing, running, and inspecting tasks.
 - Tests and GitHub Actions CI.
 

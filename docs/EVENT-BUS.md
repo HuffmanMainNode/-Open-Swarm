@@ -33,6 +33,12 @@ Events are append-only. Reusing an event ID with identical content is idempotent
 - Use one active poller per consumer ID.
 - The SQLite implementation is for one host or a supported shared local volume. It is not a multi-host coordination service.
 
+## Open-Swarm transactional outbox
+
+Open-Swarm now writes each task lifecycle audit event and its matching outbox row in the same SQLite transaction as the task-state change. A relay can publish committed outbox rows into the event journal and then mark them delivered. If the process stops after publication but before marking the row, the next attempt republishes the same event ID; the journal deduplicates it. This is at-least-once delivery, not exactly-once execution.
+
+The current relay is an explicit callable, not a continuously running background service. It must be supervised by a future local service or operator workflow. Use one relay process per task database. The outbox intentionally does not include the task prompt or model result body. Audit details may still contain diagnostic error text, so these events remain classified as internal and must not be exported without a separate review and redaction policy.
+
 ## Data protection and OSINT integrity
 
 The journal does not make private data public. Producers must classify events before publication and must not put credentials, private keys, private prompts, unredacted personal data, or internal case notes into public events. Restricted payloads remain local and require a future explicit export policy before crossing a process or network trust boundary.

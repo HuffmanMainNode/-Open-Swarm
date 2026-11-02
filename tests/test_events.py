@@ -12,7 +12,7 @@ from openswarm.events import (
     SQLiteEventBus,
     publish_outbox,
 )
-from openswarm.models import Task
+from openswarm.models import Task, TaskStatus
 from openswarm.queue import TaskQueue
 
 
@@ -163,8 +163,6 @@ def test_outbox_relay_is_safe_after_publish_before_mark(tmp_path: Path) -> None:
     bus = SQLiteEventBus(tmp_path / "events.sqlite3")
     queue.submit(Task(worker="general", prompt="not exported"))
     record = queue.pending_outbox()[0]
-    from openswarm.events import PlatformEvent
-
     bus.publish(
         PlatformEvent(
             event_id=record["event_id"],
@@ -181,3 +179,43 @@ def test_outbox_relay_is_safe_after_publish_before_mark(tmp_path: Path) -> None:
     assert receipts[0].duplicate is True
     assert bus.count() == 1
     assert queue.pending_outbox() == []
+
+
+
+def test_outbox_captures_task_approval_and_completion(tmp_path: Path) -> None:
+    queue = TaskQueue(tmp_path / "tasks.sqlite3")
+    task = Task(
+        worker="general",
+        prompt="sensitive task body",
+        requires_approval=True,
+    )
+    queue.submit(task)
+    assert [item["event_type"] for item in queue.pending_outbox()] == [
+        "task.submitted"
+    ]
+
+    queue.approve(task.task_id)
+    claimed = queue.claim()
+    assert claimed is not None
+    queue.finish(claimed, TaskStatus.SUCCEEDED, result="private result")
+
+    event_types = [item["event_type"] for item in queue.pending_outbox()]
+    assert event_types == [
+        "task.submitted",
+        "task.approved",
+        "task.claimed",
+        "task.succeeded",
+    ]
+    serialized = str(queue.pending_outbox())
+    assert "sensitive task body" not in serialized
+    assert "private result" not in serialized
+
+
+def test_outbox_attempt_count_increases_before_delivery(tmp_path: Path) -> None:
+    queue = TaskQueue(tmp_path / "tasks.sqlite3")
+    queue.submit(Task(worker="general", prompt="task"))
+    record = queue.pending_outbox()[0]
+    queue.record_outbox_attempt(record["event_id"])
+    assert queue.pending_outbox()[0]["attempts"] == 1
+    assert queue.mark_outbox_published(record["event_id"]) is True
+    assert queue.mark_outbox_published(record["event_id"]) is False
