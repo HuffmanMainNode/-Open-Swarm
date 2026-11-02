@@ -1,7 +1,7 @@
 import sys
 
 from openswarm.cli import main
-from openswarm.models import Task, TaskStatus
+from openswarm.models import TaskStatus
 from openswarm.queue import TaskQueue
 
 
@@ -14,7 +14,10 @@ def test_cli_submit_approve_run_tasks_and_audit(tmp_path, monkeypatch, capsys):
     database = str(tmp_path / "cli.sqlite3")
     _run_cli(
         monkeypatch,
-        ["--db", database, "submit", "--worker", "general", "--task", "review", "--requires-approval"],
+        [
+            "--db", database, "submit", "--worker", "general",
+            "--task", "review", "--requires-approval",
+        ],
     )
     task_id = capsys.readouterr().out.strip()
     assert TaskQueue(database).get(task_id).status == TaskStatus.PENDING_APPROVAL
