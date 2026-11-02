@@ -14,7 +14,6 @@ from openswarm.queue import TaskQueue
 class Worker:
     name: str
     capabilities: set[str] = field(default_factory=set)
-    max_concurrency: int = 1
 
 
 class SwarmRuntime:
@@ -28,8 +27,6 @@ class SwarmRuntime:
         self.queue = queue
         self.policy = policy or Policy()
         self.workers = {worker.name: worker for worker in (workers or [Worker("general")])}
-        if any(worker.max_concurrency < 1 for worker in self.workers.values()):
-            raise ValueError("worker max_concurrency must be positive")
         self.approval = approval or (lambda task: False)
         self.adapters = {"mock": MockAdapter(), "ollama": OllamaAdapter()}
 
