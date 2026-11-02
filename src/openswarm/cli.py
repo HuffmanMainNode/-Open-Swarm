@@ -48,7 +48,7 @@ def main() -> None:
         relay_service = OutboxRelay(
             queue,
             SQLiteEventBus(args.events_db),
-            batch_size=args.batch_size,
+            batch_size=getattr(args, "batch_size", 100),
         )
         if args.command == "relay-status":
             print(json.dumps(relay_service.status(), indent=2))
