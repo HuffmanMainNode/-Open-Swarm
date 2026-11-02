@@ -5,12 +5,12 @@ on:
     branches:
       - integration/phase-2-oix-atomic-handoff
       - integration/phase-3-oix-result-outbox
-      - integration/phase-3-oix-result-outbox
       - integration/phase-4-oix-secure-result-integration
   pull_request:
     branches:
       - integration/phase-1-supervised-outbox-relay
       - integration/phase-2-oix-atomic-handoff
+      - integration/phase-3-oix-result-outbox
   workflow_dispatch:
 
 permissions:
