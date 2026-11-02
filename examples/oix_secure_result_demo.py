@@ -1,4 +1,4 @@
-"""Local encrypted OIX request/result round trip through Open-Swarm."""
+"""Local OIX one-time-prekey request/result round trip through Open-Swarm."""
 from __future__ import annotations
 
 import json
@@ -10,14 +10,12 @@ from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
+from oix.prekeys import (
+    SQLitePreKeyStore,
+    create_prekey_bundle,
+)
 from oix.receipts import create_delivery_receipt, message_digest
 from oix.result_channel import SQLiteResultPublisher
-from oix.secure_transport import (
-    decrypt_envelope,
-    encrypt_envelope,
-    generate_encryption_key,
-    load_encryption_private_key,
-)
 
 from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXTaskHandoff
@@ -26,7 +24,7 @@ from openswarm.runtime import SwarmRuntime, Worker
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="oix-swarm-secure-") as temp:
+    with tempfile.TemporaryDirectory(prefix="oix-swarm-prekeys-") as temp:
         root = Path(temp)
         database = root / "shared.sqlite3"
         peer_dir, local_dir = root / "peer", root / "local"
@@ -36,15 +34,20 @@ def main() -> None:
         local_id = local_card["card"]["agent_id"]
         peer_sign = load_private_key(peer_dir)
         local_sign = load_private_key(local_dir)
-        peer_cert = generate_encryption_key(peer_dir, peer_sign)
-        local_cert = generate_encryption_key(local_dir, local_sign)
-        peer_box = load_encryption_private_key(peer_dir)
-        local_box = load_encryption_private_key(local_dir)
+
+        # Each side publishes signed public prekeys while retaining private
+        # one-time keys in its own local, owner-only SQLite store.
+        peer_prekeys = SQLitePreKeyStore(root / "peer-prekeys.sqlite3")
+        local_prekeys = SQLitePreKeyStore(root / "local-prekeys.sqlite3")
+        peer_bundle = create_prekey_bundle(peer_prekeys, peer_sign, count=8)
+        local_bundle = create_prekey_bundle(local_prekeys, local_sign, count=8)
 
         inbox = SQLiteInbox(database, local_id, CapabilityPolicy({"public.research"}))
         inbox.trust_peer(peer_card)
         request = create_message(
-            peer_sign, local_id, "task.request",
+            peer_sign,
+            local_id,
+            "task.request",
             {
                 "worker": "general",
                 "adapter": "mock",
@@ -53,19 +56,22 @@ def main() -> None:
             },
             capability="public.research",
         )
-        sealed_request = encrypt_envelope(
-            request, local_cert, local_sign.public_key().public_bytes_raw()
+        sealed_request = encrypt_prekey_envelope(
+            request, local_bundle, local_sign.public_key().public_bytes_raw()
         )
-        opened_request = decrypt_envelope(
-            sealed_request, local_box, local_cert,
+        opened_request = local_prekeys.consume_and_decrypt(
+            sealed_request,
             local_sign.public_key().public_bytes_raw(),
-            peer_sign.public_key().public_bytes_raw(), local_id,
+            peer_sign.public_key().public_bytes_raw(),
+            local_id,
         )
-        receipt = inbox.receive(opened_request)
-        inbox.decide_work(receipt.work_id, approve=True)
+        received = inbox.receive(opened_request)
+        inbox.decide_work(received.work_id, approve=True)
 
         queue = TaskQueue(database)
-        handoff = OIXTaskHandoff(queue).handoff_one(receipt.sender, receipt.message_id)
+        handoff = OIXTaskHandoff(queue).handoff_one(
+            received.sender, received.message_id
+        )
         task = SwarmRuntime(
             queue, workers=[Worker("general", {"public.research"})]
         ).run_once()
@@ -75,22 +81,29 @@ def main() -> None:
         publisher = SQLiteResultPublisher(database, local_id, local_sign)
         publisher.decide(task.task_id, approve=True)
         signed_result = publisher.sign_approved(task.task_id)
-        sealed_result = publisher.encrypt_approved(
-            task.task_id, peer_cert, peer_sign.public_key().public_bytes_raw()
-        )
-        opened_result = decrypt_envelope(
-            sealed_result, peer_box, peer_cert,
+        sealed_result = publisher.encrypt_approved_with_prekey(
+            task.task_id,
+            peer_bundle,
             peer_sign.public_key().public_bytes_raw(),
-            local_sign.public_key().public_bytes_raw(), peer_id,
         )
-        retry = publisher.encrypt_approved(
-            task.task_id, peer_cert, peer_sign.public_key().public_bytes_raw()
+        retry = publisher.encrypt_approved_with_prekey(
+            task.task_id,
+            peer_bundle,
+            peer_sign.public_key().public_bytes_raw(),
         )
-        if opened_result != signed_result or retry != sealed_result:
-            raise RuntimeError("result verification or retry persistence failed")
+        if retry != sealed_result:
+            raise RuntimeError("retry did not reuse the persisted one-time-prekey wrapper")
 
-        # The original requester persists the decrypted result before issuing
-        # a signed receipt bound to the exact encrypted wrapper.
+        opened_result = peer_prekeys.consume_and_decrypt(
+            sealed_result,
+            peer_sign.public_key().public_bytes_raw(),
+            local_sign.public_key().public_bytes_raw(),
+            peer_id,
+        )
+        if opened_result != signed_result:
+            raise RuntimeError("one-time-prekey result decryption or signature verification failed")
+
+        # The peer durably stores the result before signing a digest-bound receipt.
         peer_inbox = SQLiteInbox(root / "peer-inbox.sqlite3", peer_id)
         peer_inbox.trust_peer(local_card)
         accepted = peer_inbox.receive(opened_result)
@@ -117,18 +130,20 @@ def main() -> None:
             raise RuntimeError("signed receipt lifecycle was not idempotent")
 
         print(json.dumps({
-            "request_id": receipt.message_id,
+            "request_message_id": received.message_id,
             "task_id": handoff.task_id,
             "task_status": task.status.value,
-            "request_and_result_encryption": "verified",
+            "request_one_time_prekey": "consumed_after_verified_decryption",
+            "result_one_time_prekey": "consumed_after_verified_decryption",
             "result_message_id": opened_result["body"]["message_id"],
             "recipient_is_original_peer": opened_result["body"]["recipient"] == peer_id,
-            "retry_reuses_same_wrapper": True,
+            "retry_reused_same_encrypted_wrapper": True,
             "peer_inbox_durable_acceptance": True,
             "signed_receipt_verified": True,
             "delivery_state": "delivered",
-            "network_transport": False,
+            "transport": "local_only",
             "remote_delivery": False,
+            "model_adapter": "mock",
         }, indent=2))
 
 
