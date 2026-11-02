@@ -43,6 +43,7 @@ pytest
 - [Security model](docs/SECURITY.md)
 - [OIX integration](docs/OIX.md)
 - [OIX inbox atomic handoff adapter](docs/OIX-INBOX-ADAPTER.md)
+- [Local OIX-to-Open-Swarm end-to-end demo](examples/oix_handoff_demo.py)
 - [Local event journal contract](docs/EVENT-BUS.md)
 - [Supervised outbox relay operations](docs/OUTBOX-RELAY.md)
 - [OIX-to-platform event mapping](docs/OIX-MAPPING.md)
