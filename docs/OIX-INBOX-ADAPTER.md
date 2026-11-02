@@ -89,3 +89,38 @@ python examples/oix_handoff_demo.py
 ```
 
 The example creates only temporary keys and a temporary database, uses no hosted model, and opens no network port. It demonstrates request acceptance and local task-result generation. A signed `task.result` return message and live network transport are separate future work; this adapter does not claim remote result delivery.
+
+
+## Approval-gated result return staging
+
+Phase 3 adds a durable result outbox for tasks created through this OIX handoff.
+
+When an OIX-originated task reaches `succeeded`, `failed`, or `blocked`, Open-Swarm inserts one `oix_result_outbox` row in the same SQLite transaction as terminal task state and the audit event. Local tasks without an `oix_handoffs` mapping do not create OIX result rows. Result rows begin in `pending_approval`; task completion never authorizes release.
+
+The OIX repository provides `SQLiteResultPublisher` to:
+1. list pending results for human inspection;
+2. approve or reject each result;
+3. sign an approved `task.result` envelope and persist the exact envelope and message ID;
+4. expose persisted signed envelopes through `pending_delivery()`;
+5. record delivery only after a future transport has authenticated the recipient's acknowledgement.
+
+The signed payload includes the task ID, original request message ID, terminal status, bounded result text, and an explicit `result_omitted` flag. It does not automatically include the original prompt or error string. Results over 256 KiB are staged without result text rather than silently truncated.
+
+Example OIX-side use:
+
+```python
+from oix.result_channel import SQLiteResultPublisher
+
+publisher = SQLiteResultPublisher(shared_database, local_agent_id, local_private_key)
+for record in publisher.pending():
+    print(record["task_id"], record["payload"])
+
+publisher.decide(task_id, approve=True)
+envelope = publisher.sign_approved(task_id)
+# A future transport may transmit this exact persisted envelope.
+# Do not mark delivered until authenticated receipt is confirmed.
+```
+
+**No transport is implemented.** The signed result remains local in the outbox. A valid signature does not encrypt the payload or prove its truth. OIX v0.1 is signed but not encrypted; never approve release of secrets, personal data, restricted investigations, private prompts, credentials, or private search queries. Operator approval is a release gate, not an automated privacy classifier.
+
+The cross-repository `examples/oix_result_demo.py` verifies the complete local path using real OIX signatures and the Open-Swarm mock adapter. It confirms the return signature and original recipient, but explicitly reports `remote_delivery=false`.

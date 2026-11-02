@@ -424,6 +424,49 @@ class TaskQueue:
                     {"error": error, "result_chars": len(result or "")},
                 ),
             )
+            # If this task originated in OIX, persist a result for operator
+            # review in the same transaction as terminal task state and audit.
+            # Ordinary local tasks remain unaffected.
+            if status in {TaskStatus.SUCCEEDED, TaskStatus.FAILED, TaskStatus.BLOCKED}:
+                has_oix_outbox = db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='oix_result_outbox'"
+                ).fetchone()
+                if has_oix_outbox:
+                    origin = db.execute(
+                        "SELECT sender,message_id FROM oix_handoffs WHERE task_id=?",
+                        (task.task_id,),
+                    ).fetchone()
+                    if origin is not None:
+                        result_bytes = (result or "").encode("utf-8")
+                        result_omitted = len(result_bytes) > 262_144
+                        result_payload = {
+                            "task_id": task.task_id,
+                            "request_message_id": origin["message_id"],
+                            "status": status.value,
+                            "result": None if result_omitted else result,
+                            "result_omitted": result_omitted,
+                        }
+                        db.execute(
+                            """
+                            INSERT OR IGNORE INTO oix_result_outbox(
+                                task_id,sender,request_message_id,terminal_status,
+                                payload_json,status,created_at
+                            ) VALUES(?,?,?,?,?,'pending_approval',?)
+                            """,
+                            (
+                                task.task_id,
+                                origin["sender"],
+                                origin["message_id"],
+                                status.value,
+                                json.dumps(
+                                    result_payload,
+                                    ensure_ascii=False,
+                                    sort_keys=True,
+                                    separators=(",", ":"),
+                                ),
+                                task.updated_at,
+                            ),
+                        )
         return task
 
     def audit(self, limit: int = 100) -> list[dict[str, Any]]:
