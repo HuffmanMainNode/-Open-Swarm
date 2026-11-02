@@ -53,10 +53,11 @@ def main() -> None:
         if args.command == "relay-status":
             print(json.dumps(relay_service.status(), indent=2))
         elif args.command == "relay-once":
-            print(json.dumps(relay_service.run_once().__dict__ if hasattr(relay_service.run_once(), "__dict__") else {
-                "published": relay_service.run_once().published,
-                "duplicates": relay_service.run_once().duplicates,
-                "pending": relay_service.run_once().pending,
+            result = relay_service.run_once()
+            print(json.dumps({
+                "published": result.published,
+                "duplicates": result.duplicates,
+                "pending": result.pending,
             }, indent=2))
         else:
             logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
