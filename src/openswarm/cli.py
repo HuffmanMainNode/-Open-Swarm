@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 
 from openswarm.models import Task, TaskStatus
 from openswarm.queue import TaskQueue
+from openswarm.events import SQLiteEventBus
+from openswarm.relay import OutboxRelay
 from openswarm.runtime import SwarmRuntime, Worker
 
 
@@ -30,9 +33,38 @@ def main() -> None:
     audit = sub.add_parser("audit")
     audit.add_argument("--limit", type=int, default=100)
     sub.add_parser("demo")
+    relay = sub.add_parser("relay", help="run the supervised local outbox relay")
+    relay.add_argument("--events-db", default=".openswarm/events.sqlite3")
+    relay.add_argument("--poll-interval", type=float, default=2.0)
+    relay.add_argument("--batch-size", type=int, default=100)
+    relay_once = sub.add_parser("relay-once", help="publish one outbox batch and exit")
+    relay_once.add_argument("--events-db", default=".openswarm/events.sqlite3")
+    relay_once.add_argument("--batch-size", type=int, default=100)
+    relay_status = sub.add_parser("relay-status", help="show local outbox and relay health")
+    relay_status.add_argument("--events-db", default=".openswarm/events.sqlite3")
     args = parser.parse_args()
     queue = TaskQueue(args.db)
-    if args.command == "submit":
+    if args.command in {"relay", "relay-once", "relay-status"}:
+        relay_service = OutboxRelay(
+            queue,
+            SQLiteEventBus(args.events_db),
+            batch_size=args.batch_size,
+        )
+        if args.command == "relay-status":
+            print(json.dumps(relay_service.status(), indent=2))
+        elif args.command == "relay-once":
+            print(json.dumps(relay_service.run_once().__dict__ if hasattr(relay_service.run_once(), "__dict__") else {
+                "published": relay_service.run_once().published,
+                "duplicates": relay_service.run_once().duplicates,
+                "pending": relay_service.run_once().pending,
+            }, indent=2))
+        else:
+            logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+            try:
+                relay_service.run_forever(poll_interval=args.poll_interval)
+            except KeyboardInterrupt:
+                pass
+    elif args.command == "submit":
         task = queue.submit(
             Task(
                 worker=args.worker,
