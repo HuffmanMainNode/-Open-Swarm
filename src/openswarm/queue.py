@@ -215,7 +215,8 @@ class TaskQueue:
                     old.status = TaskStatus.QUEUED
                     event_type = "task.lease_expired"
                 db.execute(
-                    "UPDATE tasks SET payload=?,status=?,updated_at=?,lease_id=NULL WHERE task_id=?",
+                    "UPDATE tasks SET payload=?,status=?,updated_at=?,lease_id=NULL "
+                    "WHERE task_id=?",
                     (json.dumps(old.to_dict()), old.status.value, old.updated_at, old.task_id),
                 )
                 self._event(db, AuditEvent(event_type, old.task_id, {"attempts": old.attempts}))
