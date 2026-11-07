@@ -367,6 +367,27 @@ class TaskQueue:
             )
             return task
 
+    def oix_sender_is_trusted(self, task_id: str) -> bool | None:
+        """Return current trust for an OIX-origin task; None means local task."""
+        with self._connect() as db:
+            tables = {
+                row["name"] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "oix_handoffs" not in tables:
+                return None
+            origin = db.execute(
+                "SELECT sender FROM oix_handoffs WHERE task_id=?", (task_id,)
+            ).fetchone()
+            if origin is None:
+                return None
+            if "trusted_peers" not in tables:
+                return False
+            return db.execute(
+                "SELECT 1 FROM trusted_peers WHERE agent_id=?", (origin["sender"],)
+            ).fetchone() is not None
+
     def finish(
         self,
         task: Task,
@@ -384,13 +405,37 @@ class TaskQueue:
         expected_lease = task.lease_id
         if not expected_lease or task.status != TaskStatus.RUNNING:
             raise LeaseOwnershipError("task has no active lease")
-        task.status = status
-        task.result = result
-        task.error = error
         task.updated_at = datetime.now(UTC).isoformat()
         task.lease_id = None
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            origin = None
+            tables = {
+                row["name"] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "oix_handoffs" in tables:
+                origin = db.execute(
+                    "SELECT sender,message_id FROM oix_handoffs WHERE task_id=?",
+                    (task.task_id,),
+                ).fetchone()
+            origin_trusted = True
+            if origin is not None:
+                origin_trusted = (
+                    "trusted_peers" in tables
+                    and db.execute(
+                        "SELECT 1 FROM trusted_peers WHERE agent_id=?",
+                        (origin["sender"],),
+                    ).fetchone() is not None
+                )
+                if not origin_trusted:
+                    status = TaskStatus.BLOCKED
+                    result = None
+                    error = "OIX sender trust revoked before task completion"
+            task.status = status
+            task.result = result
+            task.error = error
             changed = db.execute(
                 """
                 UPDATE tasks SET payload=?,status=?,updated_at=?,lease_id=NULL
@@ -436,7 +481,7 @@ class TaskQueue:
                         "SELECT sender,message_id FROM oix_handoffs WHERE task_id=?",
                         (task.task_id,),
                     ).fetchone()
-                    if origin is not None:
+                    if origin is not None and origin_trusted:
                         result_bytes = (result or "").encode("utf-8")
                         result_omitted = len(result_bytes) > 262_144
                         result_payload = {

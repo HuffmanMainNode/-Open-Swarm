@@ -39,6 +39,12 @@ class SwarmRuntime:
         task = self.queue.claim()
         if task is None:
             return None
+        if self.queue.oix_sender_is_trusted(task.task_id) is False:
+            return self.queue.finish(
+                task,
+                TaskStatus.BLOCKED,
+                error="OIX sender trust revoked before execution",
+            )
         worker = self.workers.get(task.worker)
         if worker is None:
             return self.queue.finish(
