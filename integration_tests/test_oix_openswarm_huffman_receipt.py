@@ -9,8 +9,8 @@ import time
 import uuid
 from pathlib import Path
 
-import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+import pytest
 
 from hdi.assurance import build_receipt, canonical_json, evaluate_receipt, verify_receipt
 from oix.envelope import create_message
