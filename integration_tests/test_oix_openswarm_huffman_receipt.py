@@ -9,8 +9,6 @@ import time
 import uuid
 from pathlib import Path
 
-import pytest
-
 from hdi.assurance import build_receipt, canonical_json, evaluate_receipt, verify_receipt
 from oix.envelope import create_message
 from oix.identity import generate_identity, load_private_key
@@ -21,6 +19,8 @@ from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXHandoffError, OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
+import pytest
+
 
 class RevokingAdapter:
     def __init__(self, inbox: SQLiteInbox, peer_id: str):
