@@ -246,3 +246,12 @@ No real target is scanned, no external URL is fetched, and no artifact bytes are
 Before moving an approved OIX task into the Open-Swarm queue, the adapter now checks that the sender still has an entry in OIX's local trusted-peer table. Removing a peer from that table after message acceptance and operator approval therefore prevents a not-yet-dispatched task from entering the queue. The bulk handoff query also excludes senders that are no longer trusted.
 
 This is a local, same-SQLite-database check. It does not create a distributed revocation service, cancel tasks that were already dispatched, or replace AAP-style scoped authorization. Already-dispatched tasks follow the existing task lifecycle and result-approval boundary. Operators must separately cancel or block in-flight work when required by their policy.
+
+
+## Execution-time revocation gate
+
+The runtime now checks the current OIX sender trust immediately after claiming a remote task and before invoking its adapter. If the sender has been revoked while the task was queued, the task is marked BLOCKED and the adapter is not called.
+
+The queue completion transaction checks trust again. If revocation occurs during model inference, the task is changed to BLOCKED, its generated result is discarded, and no new result outbox entry is created. This closes the local race between the pre-execution check and result persistence.
+
+The current runtime adapters do not expose arbitrary external tools. Any future adapter that performs external side effects must revalidate its authorization immediately before each effect. This gate does not interrupt an already-running inference call; it prevents its result from being persisted or returned after revocation.
