@@ -129,3 +129,8 @@ The optional bridges in Halloween OSINT and Huffman Cyber Observatory can sign l
 ### Continuous ingestion
 
 The checkpointed `IngestionSupervisor` runs explicit source adapters with SQLite leases, bounded batches, exponential retry backoff, idempotent event publication, and atomic checkpoint advancement. An optional CISA KEV adapter uses Huffman Cyber Observatory's fixed public feed client. Run it with `openswarm-ingest-cisa-kev --events-db .openswarm/events.sqlite3 --interval 300`. See [Continuous Ingestion](docs/CONTINUOUS-INGESTION.md) and the synthetic fixture demo at `examples/cisa_kev_ingestion_demo.py`.
+
+
+### Huffman Protocol cross-project assurance
+
+The optional integration suite installs pinned OIX and HDI revisions alongside Open-Swarm and exercises the real shared-SQLite lifecycle: revocation before dispatch, revocation during inference, and rejection of undelivered results. It emits a signed assurance receipt containing the test-suite digest and evidence hashes. The CI workflow uploads receipts as artifacts. This is a local protocol lifecycle test, not a WAN deployment or certification claim. See [Huffman Protocol Integration](docs/HUFFMAN-PROTOCOL-INTEGRATION.md).
