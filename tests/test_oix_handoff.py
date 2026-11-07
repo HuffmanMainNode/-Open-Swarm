@@ -139,7 +139,7 @@ def test_runtime_suppresses_result_if_peer_revoked_during_inference(tmp_path):
         path,
         payload={
             "prompt": "Test revocation during execution",
-            "adapter": "revoking",
+            "adapter": "mock",
             "capabilities": ["public.research"],
         },
     )
@@ -147,7 +147,7 @@ def test_runtime_suppresses_result_if_peer_revoked_during_inference(tmp_path):
 
     adapter = _CountingAdapter(database=path)
     runtime = SwarmRuntime(queue, workers=[Worker("general", {"public.research"})])
-    runtime.register_adapter("revoking", adapter)
+    runtime.register_adapter("mock", adapter)
     finished = runtime.run_once()
 
     assert finished is not None
