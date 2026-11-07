@@ -18,6 +18,15 @@ def create_shared_database(path):
     with sqlite3.connect(path) as db:
         db.execute(
             """
+            CREATE TABLE trusted_peers (
+                agent_id TEXT PRIMARY KEY,
+                signed_card_json TEXT NOT NULL,
+                trusted_at INTEGER NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE inbox_messages (
                 sender TEXT NOT NULL,
                 message_id TEXT NOT NULL,
@@ -62,6 +71,10 @@ def add_approved_work(path, *, sender="peer-fingerprint", message_id=None,
     work_id = str(uuid.uuid4())
     body = {"type": work_type, "payload": payload or {"prompt": "Summarize public advisories"}}
     with sqlite3.connect(path) as db:
+        db.execute(
+            "INSERT OR IGNORE INTO trusted_peers VALUES(?,?,?)",
+            (sender, "{}", 1),
+        )
         db.execute(
             """INSERT INTO inbox_messages VALUES(?,?,?,?,?,?,?,?)""",
             (sender, message_id, str(uuid.uuid4()), work_type, "digest", json.dumps(body),
@@ -238,6 +251,40 @@ def test_concurrent_handoff_race_creates_exactly_one_task(tmp_path):
         assert db.execute("SELECT COUNT(*) FROM integration_outbox").fetchone()[0] == 1
         assert db.execute("SELECT status FROM inbound_work").fetchone()[0] == "dispatched"
 
+
+
+
+def test_revoked_peer_cannot_handoff_previously_approved_task(tmp_path):
+    path = tmp_path / "shared.sqlite3"
+    queue = create_shared_database(path)
+    sender, message_id, work_id = add_approved_work(path)
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM trusted_peers WHERE agent_id=?", (sender,))
+
+    with pytest.raises(OIXHandoffError, match="no longer trusted"):
+        OIXTaskHandoff(queue).handoff_one(sender, message_id)
+
+    with sqlite3.connect(path) as db:
+        assert db.execute(
+            "SELECT status FROM inbound_work WHERE work_id=?", (work_id,)
+        ).fetchone()[0] == "approved"
+        assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM integration_outbox").fetchone()[0] == 0
+
+
+def test_handoff_pending_skips_revoked_peer(tmp_path):
+    path = tmp_path / "shared.sqlite3"
+    queue = create_shared_database(path)
+    sender, message_id, work_id = add_approved_work(path)
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM trusted_peers WHERE agent_id=?", (sender,))
+
+    assert OIXTaskHandoff(queue).handoff_pending() == []
+    with sqlite3.connect(path) as db:
+        assert db.execute(
+            "SELECT status FROM inbound_work WHERE work_id=?", (work_id,)
+        ).fetchone()[0] == "approved"
+        assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
 
 
 def test_remote_task_cannot_escalate_beyond_oix_approved_capability(tmp_path):
