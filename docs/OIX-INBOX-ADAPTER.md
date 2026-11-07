@@ -239,3 +239,10 @@ The workflow checks out:
 The demonstration creates synthetic local artifacts, then uses the Halloween bridge to create a `domain_observation` evidence message and the Cyber Observatory bridge to create an `sbom_analysis` evidence message. It sends those alongside two task requests in one authenticated persistent stream. The receiver applies operator approval separately to task requests and evidence records, ingests both evidence events, runs the two approved tasks using the local mock worker, and returns two encrypted results over one persistent stream.
 
 No real target is scanned, no external URL is fetched, and no artifact bytes are uploaded. The demo runs on one physical host with loopback-only listeners and independent OIX agent databases. It demonstrates contract interoperability, not WAN deployment or distributed-broker availability.
+
+
+## Current trust revalidation at the dispatch boundary
+
+Before moving an approved OIX task into the Open-Swarm queue, the adapter now checks that the sender still has an entry in OIX's local trusted-peer table. Removing a peer from that table after message acceptance and operator approval therefore prevents a not-yet-dispatched task from entering the queue. The bulk handoff query also excludes senders that are no longer trusted.
+
+This is a local, same-SQLite-database check. It does not create a distributed revocation service, cancel tasks that were already dispatched, or replace AAP-style scoped authorization. Already-dispatched tasks follow the existing task lifecycle and result-approval boundary. Operators must separately cancel or block in-flight work when required by their policy.
