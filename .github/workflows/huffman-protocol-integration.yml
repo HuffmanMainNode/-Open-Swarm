@@ -1,0 +1,70 @@
+name: Huffman Protocol cross-project integration
+
+on:
+  pull_request:
+    paths:
+      - "integration_tests/**"
+      - "docs/HUFFMAN-PROTOCOL-INTEGRATION.md"
+      - ".github/workflows/huffman-protocol-integration.yml"
+      - "pyproject.toml"
+  push:
+    branches: [main]
+    paths:
+      - "integration_tests/**"
+      - "docs/HUFFMAN-PROTOCOL-INTEGRATION.md"
+      - ".github/workflows/huffman-protocol-integration.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cross-project:
+    runs-on: ubuntu-latest
+    env:
+      HUFFMAN_OIX_SHA: 2637d90ba8ba3e21d4841109312384650fbe8529
+      HUFFMAN_HDI_SHA: 37dccbf498f589b356162dd8046d7b57b638c1af
+      HUFFMAN_RECEIPT_DIR: .artifacts/huffman-assurance
+    steps:
+      - name: Check out Open-Swarm
+        uses: actions/checkout@v4
+
+      - name: Check out pinned OIX dependency
+        uses: actions/checkout@v4
+        with:
+          repository: HuffmanMainNode/Open-Intelligence-Exchange
+          ref: 2637d90ba8ba3e21d4841109312384650fbe8529
+          path: deps/oix
+
+      - name: Check out pinned HDI dependency
+        uses: actions/checkout@v4
+        with:
+          repository: HuffmanMainNode/Huffman-Defensive-Intelligence
+          ref: 37dccbf498f589b356162dd8046d7b57b638c1af
+          path: deps/hdi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned cross-project packages
+        run: python -m pip install -e ./deps/oix -e ./deps/hdi -e ".[dev]"
+
+      - name: Run real OIX to Open-Swarm lifecycle scenarios
+        run: python -m pytest -q integration_tests
+
+      - name: Lint integration and runtime code
+        run: ruff check src integration_tests
+
+      - name: Security lint
+        run: bandit -q -r src
+
+      - name: Upload signed assurance receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: huffman-protocol-assurance-receipts
+          path: .artifacts/huffman-assurance/*.json
+          if-no-files-found: warn
