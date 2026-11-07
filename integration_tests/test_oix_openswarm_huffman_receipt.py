@@ -9,7 +9,6 @@ import time
 import uuid
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 import pytest
 
 from hdi.assurance import build_receipt, canonical_json, evaluate_receipt, verify_receipt
@@ -22,7 +21,6 @@ from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXHandoffError, OIXTaskHandoff
 from openswarm.queue import TaskQueue
 from openswarm.runtime import SwarmRuntime, Worker
-
 
 class RevokingAdapter:
     def __init__(self, inbox: SQLiteInbox, peer_id: str):
