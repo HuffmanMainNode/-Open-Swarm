@@ -95,6 +95,17 @@ def test_cli_oix_handoff_moves_only_approved_work(tmp_path, monkeypatch, capsys)
     payload = json.dumps({"prompt": "Summarize public advisories"})
     with sqlite3.connect(database) as db:
         db.execute(
+            """CREATE TABLE trusted_peers (
+                agent_id TEXT PRIMARY KEY,
+                signed_card_json TEXT NOT NULL,
+                trusted_at INTEGER NOT NULL
+            )"""
+        )
+        db.execute(
+            "INSERT INTO trusted_peers VALUES(?,?,?)",
+            (sender, "{}", 1),
+        )
+        db.execute(
             """CREATE TABLE inbox_messages (
                 sender TEXT NOT NULL, message_id TEXT NOT NULL, nonce TEXT NOT NULL,
                 message_type TEXT NOT NULL, content_sha256 TEXT NOT NULL,

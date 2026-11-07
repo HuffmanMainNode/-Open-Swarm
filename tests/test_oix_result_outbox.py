@@ -15,6 +15,10 @@ def _shared_queue(path):
     with sqlite3.connect(path) as db:
         db.executescript(
             """
+            CREATE TABLE trusted_peers (
+                agent_id TEXT PRIMARY KEY, signed_card_json TEXT NOT NULL,
+                trusted_at INTEGER NOT NULL
+            );
             CREATE TABLE inbox_messages (
                 sender TEXT NOT NULL, message_id TEXT NOT NULL, nonce TEXT NOT NULL,
                 message_type TEXT NOT NULL, content_sha256 TEXT NOT NULL,
@@ -33,6 +37,10 @@ def _shared_queue(path):
         sender = "ed25519:origin-peer"
         message_id = str(uuid.uuid4())
         work_id = str(uuid.uuid4())
+        db.execute(
+            "INSERT INTO trusted_peers VALUES(?,?,?)",
+            (sender, "{}", 1),
+        )
         db.execute(
             "INSERT INTO inbox_messages VALUES(?,?,?,?,?,?,?,?)",
             (sender, message_id, "nonce", "task.request", "digest", "{}", "{}", 1),

@@ -129,10 +129,15 @@ class OIXTaskHandoff:
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
         }
-        required = {"inbox_messages", "inbound_work"}
+        required = {"trusted_peers", "inbox_messages", "inbound_work"}
         if not required.issubset(tables):
             missing = ", ".join(sorted(required - tables))
             raise OIXSchemaError(f"missing OIX inbox tables: {missing}")
+        trusted_columns = {
+            row["name"] for row in db.execute("PRAGMA table_info(trusted_peers)")
+        }
+        if "agent_id" not in trusted_columns:
+            raise OIXSchemaError("OIX trusted_peers schema is incompatible")
         inbox_columns = {
             row["name"] for row in db.execute("PRAGMA table_info(inbox_messages)")
         }
@@ -231,6 +236,14 @@ class OIXTaskHandoff:
             db.execute("PRAGMA foreign_keys=ON")
             db.execute("BEGIN IMMEDIATE")
             self._require_oix_schema(db)
+            trusted = db.execute(
+                "SELECT 1 FROM trusted_peers WHERE agent_id=?",
+                (sender,),
+            ).fetchone()
+            if trusted is None:
+                raise OIXHandoffError(
+                    "OIX sender is no longer trusted; refusing task handoff"
+                )
             existing = db.execute(
                 """
                 SELECT h.work_id,h.task_id,t.status
@@ -325,9 +338,10 @@ class OIXTaskHandoff:
             self._require_oix_schema(db)
             rows = db.execute(
                 """
-                SELECT sender,message_id FROM inbound_work
-                WHERE work_type='task.request' AND status='approved'
-                ORDER BY created_at,work_id LIMIT ?
+                SELECT w.sender,w.message_id FROM inbound_work AS w
+                JOIN trusted_peers AS p ON p.agent_id=w.sender
+                WHERE w.work_type='task.request' AND w.status='approved'
+                ORDER BY w.created_at,w.work_id LIMIT ?
                 """,
                 (limit,),
             ).fetchall()
