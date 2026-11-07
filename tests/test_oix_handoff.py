@@ -11,6 +11,7 @@ from openswarm.oix_handoff import (
     OIXTaskHandoff,
 )
 from openswarm.queue import QueueFullError, TaskQueue
+from openswarm.runtime import SwarmRuntime, Worker
 
 
 def create_shared_database(path):
@@ -86,6 +87,75 @@ def add_approved_work(path, *, sender="peer-fingerprint", message_id=None,
              status, 1, 1 if status != "pending_approval" else None),
         )
     return sender, message_id, work_id
+
+
+
+class _CountingAdapter:
+    def __init__(self, database=None):
+        self.calls = 0
+        self.database = database
+
+    def generate(self, prompt, model=None, timeout_seconds=60):
+        self.calls += 1
+        if self.database is not None:
+            with sqlite3.connect(self.database) as db:
+                db.execute("DELETE FROM trusted_peers WHERE agent_id='peer-fingerprint'")
+        return "adapter result"
+
+
+def test_runtime_blocks_queued_oix_task_after_peer_revocation(tmp_path):
+    path = tmp_path / "shared.sqlite3"
+    queue = create_shared_database(path)
+    sender, message_id, _ = add_approved_work(
+        path,
+        payload={
+            "prompt": "Do not execute after revocation",
+            "adapter": "counting",
+            "capabilities": ["public.research"],
+        },
+    )
+    receipt = OIXTaskHandoff(queue).handoff_one(sender, message_id)
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM trusted_peers WHERE agent_id=?", (sender,))
+
+    adapter = _CountingAdapter()
+    runtime = SwarmRuntime(queue, workers=[Worker("general", {"public.research"})])
+    runtime.register_adapter("counting", adapter)
+    finished = runtime.run_once()
+
+    assert finished is not None
+    assert finished.task_id == receipt.task_id
+    assert finished.status == TaskStatus.BLOCKED
+    assert "trust revoked" in (finished.error or "")
+    assert adapter.calls == 0
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM oix_result_outbox").fetchone()[0] == 0
+
+
+def test_runtime_suppresses_result_if_peer_revoked_during_inference(tmp_path):
+    path = tmp_path / "shared.sqlite3"
+    queue = create_shared_database(path)
+    sender, message_id, _ = add_approved_work(
+        path,
+        payload={
+            "prompt": "Test revocation during execution",
+            "adapter": "revoking",
+            "capabilities": ["public.research"],
+        },
+    )
+    OIXTaskHandoff(queue).handoff_one(sender, message_id)
+
+    adapter = _CountingAdapter(database=path)
+    runtime = SwarmRuntime(queue, workers=[Worker("general", {"public.research"})])
+    runtime.register_adapter("revoking", adapter)
+    finished = runtime.run_once()
+
+    assert finished is not None
+    assert finished.status == TaskStatus.BLOCKED
+    assert "trust revoked" in (finished.error or "")
+    assert adapter.calls == 1
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM oix_result_outbox").fetchone()[0] == 0
 
 
 def test_approved_oix_task_handoff_is_atomic_and_audited(tmp_path):
