@@ -9,3 +9,4 @@ build/
 .openswarm/
 *.sqlite3
 .env
+.artifacts/
