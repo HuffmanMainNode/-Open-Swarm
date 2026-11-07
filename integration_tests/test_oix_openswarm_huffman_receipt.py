@@ -9,8 +9,6 @@ import time
 import uuid
 from pathlib import Path
 
-import pytest
-
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from hdi.assurance import build_receipt, canonical_json, evaluate_receipt, verify_receipt
 from oix.envelope import create_message
@@ -18,6 +16,8 @@ from oix.identity import generate_identity, load_private_key
 from oix.inbox import SQLiteInbox
 from oix.policy import CapabilityPolicy
 from oix.result_channel import ResultChannelError, SQLiteResultPublisher
+import pytest
+
 from openswarm.models import TaskStatus
 from openswarm.oix_handoff import OIXHandoffError, OIXTaskHandoff
 from openswarm.queue import TaskQueue
