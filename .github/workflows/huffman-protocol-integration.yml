@@ -23,8 +23,8 @@ jobs:
   cross-project:
     runs-on: ubuntu-latest
     env:
-      HUFFMAN_OIX_SHA: 2637d90ba8ba3e21d4841109312384650fbe8529
-      HUFFMAN_HDI_SHA: 37dccbf498f589b356162dd8046d7b57b638c1af
+      HUFFMAN_OIX_SHA: 19f525e5e3bcff96b2f4d3137cf210e022682a6e
+      HUFFMAN_HDI_SHA: af4ed25c44eac7af9d71cdac27f6747a0dcbe05a
       HUFFMAN_RECEIPT_DIR: .artifacts/huffman-assurance
     steps:
       - name: Check out Open-Swarm
@@ -34,14 +34,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Open-Intelligence-Exchange
-          ref: 2637d90ba8ba3e21d4841109312384650fbe8529
+          ref: 19f525e5e3bcff96b2f4d3137cf210e022682a6e
           path: deps/oix
 
       - name: Check out pinned HDI dependency
         uses: actions/checkout@v4
         with:
           repository: HuffmanMainNode/Huffman-Defensive-Intelligence
-          ref: 37dccbf498f589b356162dd8046d7b57b638c1af
+          ref: af4ed25c44eac7af9d71cdac27f6747a0dcbe05a
           path: deps/hdi
 
       - name: Set up Python
