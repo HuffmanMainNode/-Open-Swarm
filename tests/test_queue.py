@@ -215,26 +215,24 @@ def test_submit_rejects_invalid_max_attempts(tmp_path):
 
 
 def test_concurrent_submitters_cannot_exceed_queue_capacity(tmp_path):
-    from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
 
     path = tmp_path / "capacity-race.sqlite3"
-    queue = TaskQueue(path, max_queued=1)
+    queues = [TaskQueue(path, max_queued=1), TaskQueue(path, max_queued=1)]
     barrier = Barrier(2)
 
-    def submit(prompt):
+    def submit(item):
+        queue, prompt = item
         barrier.wait()
         try:
-            TaskQueue(path, max_queued=1).submit(
-                Task(worker="general", prompt=prompt)
-            )
+            queue.submit(Task(worker="general", prompt=prompt))
             return "accepted"
         except QueueFullError:
             return "full"
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        outcomes = list(executor.map(submit, ("first", "second")))
+        outcomes = list(executor.map(submit, zip(queues, ("first", "second"))))
 
     assert outcomes.count("accepted") == 1
     assert outcomes.count("full") == 1
-    assert len(queue.list()) == 1
+    assert len(queues[0].list()) == 1
