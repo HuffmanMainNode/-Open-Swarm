@@ -212,3 +212,27 @@ def test_submit_rejects_invalid_max_attempts(tmp_path):
         queue.submit(Task(worker="general", prompt="invalid", max_attempts=0))
     with pytest.raises(TypeError, match="must be an integer"):
         queue.submit(Task(worker="general", prompt="invalid", max_attempts=True))
+
+
+def test_concurrent_submitters_cannot_exceed_queue_capacity(tmp_path):
+    from threading import Barrier
+
+    path = tmp_path / "capacity-race.sqlite3"
+    queues = [TaskQueue(path, max_queued=1), TaskQueue(path, max_queued=1)]
+    barrier = Barrier(2)
+
+    def submit(item):
+        queue, prompt = item
+        barrier.wait()
+        try:
+            queue.submit(Task(worker="general", prompt=prompt))
+            return "accepted"
+        except QueueFullError:
+            return "full"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(submit, zip(queues, ("first", "second"))))
+
+    assert outcomes.count("accepted") == 1
+    assert outcomes.count("full") == 1
+    assert len(queues[0].list()) == 1

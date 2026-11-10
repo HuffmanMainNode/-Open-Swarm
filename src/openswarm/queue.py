@@ -217,6 +217,10 @@ class TaskQueue:
             task.status = TaskStatus.PENDING_APPROVAL
             task.approved = False
         with self._connect() as db:
+            # Serialize capacity check and insertion across independent writers.
+            # A plain SELECT does not acquire SQLite's write lock, so two
+            # concurrent submitters could otherwise both observe free capacity.
+            db.execute("BEGIN IMMEDIATE")
             count = db.execute(
                 "SELECT COUNT(*) FROM tasks WHERE status IN (?,?)",
                 (TaskStatus.QUEUED.value, TaskStatus.PENDING_APPROVAL.value),
